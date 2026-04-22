@@ -9,12 +9,16 @@ authors = [
 ]
 
 dependencies = [
-  "httpx>=0.23.0, <1",
+  "httpx[http2]>=0.23.0, <1",
   "pydantic>=1.9.0, <3",
   "typing-extensions>=4.14, <5",
   "anyio>=3.5.0, <5",
   "distro>=1.7.0, <2",
   "sniffio",
+  "click>=8.1, <9",
+  "tabulate>=0.9, <1",
+  "websockets>=12, <14",
+  "tomli>=2.0, <3; python_version < '3.11'",
 ]
 
 requires-python = ">= 3.9"
@@ -39,6 +43,9 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/fastvm-org/fastvm-sdk-python"
 Repository = "https://github.com/fastvm-org/fastvm-sdk-python"
+
+[project.scripts]
+fastvm = "fastvm.lib.cli:main"
 
 [project.optional-dependencies]
 aiohttp = ["aiohttp", "httpx_aiohttp>=0.1.9"]
@@ -120,6 +127,9 @@ addopts = "--tb=short -n auto"
 xfail_strict = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+markers = [
+  "live: tests that hit the real FastVM API (gated on FASTVM_API_KEY)",
+]
 filterwarnings = [
   "error"
 ]
@@ -136,6 +146,7 @@ exclude = [
     ".venv",
     ".nox",
     ".git",
+    "src/fastvm/lib/cli",
 ]
 
 reportImplicitOverride = true

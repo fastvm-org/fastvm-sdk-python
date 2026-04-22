@@ -2,20 +2,23 @@
 
 Everything in this directory is out of scope for Stainless code generation, so
 files here survive regenerations untouched. Users who want the full ergonomics
-of the old hand-written SDK import from here instead of the top-level package:
+of the old hand-written SDK import from here (or the top-level package, which
+re-exports these symbols):
 
-    from fastvm.lib import FastvmClient, AsyncFastvmClient
+    from fastvm import FastvmClient, AsyncFastvmClient
 
-Those classes subclass the generated ``Fastvm`` / ``AsyncFastvm`` and add:
+``FastvmClient`` / ``AsyncFastvmClient`` subclass the generated ``Fastvm`` /
+``AsyncFastvm`` and add:
 
-  * ``warmup()`` — pre-open HTTP/2 connection via ``GET /healthz``
-  * ``launch(...)`` — ``POST /v1/vms`` + poll until status == ``running``
-  * ``upload_file`` / ``upload_directory`` — client → VM file transfer
-  * ``download_file`` / ``download_directory`` — VM → client file transfer
-  * ``run(vm_id, command)`` — short-form alias for ``vms.run(...)``
+  * HTTP/2 ``httpx`` client by default (multiplexing + header compression)
+  * ``launch(...)`` — ``POST /v1/vms`` + poll until ``status == running``
+  * ``upload(vm_id, local, remote)`` / ``download(vm_id, remote, local)``
+    — unified file/dir transfers via presigned storage URLs
+  * ``client.vms.run(id, command="ls -la")`` — auto-wraps shell strings
+    into ``["sh", "-c", ...]`` (Python-only footgun guard)
 
-The raw generated methods (``client.vms.launch``, ``client.vms.files.presign``,
-etc.) remain available for escape-hatch use.
+The raw generated API (``client.vms.files.presign``, etc.) is untouched and
+available as an escape hatch.
 """
 
 from ._client import FastvmClient, AsyncFastvmClient
@@ -25,7 +28,7 @@ __all__ = [
     "FastvmClient",
     "AsyncFastvmClient",
     "VMLaunchError",
-    "VMExecError",
     "VMNotReadyError",
+    "VMExecError",
     "FileTransferError",
 ]

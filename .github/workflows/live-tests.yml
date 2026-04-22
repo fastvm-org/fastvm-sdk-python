@@ -1,0 +1,39 @@
+name: Live tests
+
+# Hits the real FastVM API. Runs on-demand and nightly.
+# Requires the ``FASTVM_API_KEY`` repo secret; tests auto-skip otherwise.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: FastVM API base URL (optional override)
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC daily
+
+jobs:
+  live:
+    name: live
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    concurrency:
+      # Prevent concurrent live runs from fighting over quota / VMs.
+      group: fastvm-live-tests
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.10.2'
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run live tests
+        env:
+          FASTVM_API_KEY: ${{ secrets.FASTVM_API_KEY }}
+          FASTVM_BASE_URL: ${{ github.event.inputs.base_url }}
+        run: uv run pytest tests/lib/live -v

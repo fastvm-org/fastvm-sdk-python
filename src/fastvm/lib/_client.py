@@ -1,24 +1,53 @@
-"""``FastvmClient`` / ``AsyncFastvmClient`` — ergonomic wrappers.
+"""``FastvmClient`` / ``AsyncFastvmClient`` — ergonomic wrappers over the generated client.
 
-Subclasses the generated ``Fastvm`` / ``AsyncFastvm`` clients. Everything here
-is additive; the generated resources (``self.vms``, ``self.snapshots``,
-``self.quotas``, ``self.health()``) are unchanged.
+Layers three things on top of the raw Stainless output:
+
+1. **HTTP/2 by default.** The generated ``httpx.Client`` is HTTP/1.1 only; we
+   pre-configure an ``http2=True`` client unless the user passes their own.
+
+2. **``launch()`` polling.** ``POST /v1/vms`` can return 201 (already running)
+   or 202 (queued). We wait for ``status=running`` with jittered backoff and
+   terminal-status detection.
+
+3. **``upload()`` / ``download()``.** Raw file endpoints expose presigned URLs
+   + ``fetch`` + ``run``; users think in ``(vm_id, local_path, remote_path)``.
+   One call dispatches to file-or-directory based on what's actually there.
+
+4. **Shell-string safety net.** ``client.vms.run(id, command="ls -la")`` in
+   Python would iterate the string into characters (silent footgun). We accept
+   ``str`` on ``vms.run`` and auto-wrap into ``["sh", "-c", ...]``.
 """
 
 from __future__ import annotations
 
 import os
 import time
+import shlex
 import random
 import asyncio
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, Iterator, Optional, Sequence, AsyncIterator, cast
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    List,
+    Union,
+    BinaryIO,
+    Iterator,
+    Optional,
+    Sequence,
+    AsyncIterator,
+    cast,
+)
 
 import httpx
 
 from ._errors import VMExecError, VMLaunchError, VMNotReadyError, FileTransferError
 from .._client import Fastvm, AsyncFastvm
-from ._tarutil import quote_sh, pack_directory_to_stream, unpack_stream_to_directory
+from .._compat import cached_property
+from ._tarutil import pack_directory_to_stream, unpack_stream_to_directory
 from ..types.vm import Vm
+from .._base_client import DEFAULT_TIMEOUT, DEFAULT_CONNECTION_LIMITS
+from ..resources.vms.vms import VmsResource, AsyncVmsResource
 from ..types.exec_result import ExecResult
 
 if TYPE_CHECKING:
@@ -28,47 +57,78 @@ __all__ = ["FastvmClient", "AsyncFastvmClient"]
 
 
 # --------------------------------------------------------------------------- #
-#                               Shared constants                              #
+#                                 Constants                                   #
 # --------------------------------------------------------------------------- #
 
-# VM statuses that mean "give up, won't become runnable".
+# VM statuses that mean "give up, won't become runnable". Any other non-
+# ``running`` value is treated as transitional (per spec: unknown statuses
+# should be considered in-transition).
 _TERMINAL_FAILURE = {"error", "stopped", "deleting"}
 _RUNNING = "running"
 
-# GCS signed URLs are signed against a specific Content-Type; must match
-# exactly on both the client PUT and the VM-side ``curl -T``. Our backend
-# presigns with this value.
+# GCS signed URLs are signed against a specific Content-Type; the client PUT
+# and the VM-side ``curl -T`` must both use this exact value.
 _PUT_CONTENT_TYPE = "application/octet-stream"
 
-# How long we'll wait for HTTP ops to the storage backend (presigned URLs)
-# to complete. Separate from the scheduler client timeout since large
-# transfers legitimately take minutes.
+# Separate timeouts for storage ops — large file transfers legitimately take
+# minutes, much longer than the scheduler client's default timeout.
 _STORAGE_HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=900.0, write=900.0, pool=15.0)
 
 # Where tarballs land inside the VM during directory transfers.
 _VM_STAGE_DIR = "/tmp"
 
 
-def _stage_tar_path(tag: str) -> str:
-    """Unique-per-process tarball path inside the VM."""
-    return f"{_VM_STAGE_DIR}/fastvm-{tag}-{os.getpid()}-{random.randrange(1 << 30):x}.tar.gz"
+# --------------------------------------------------------------------------- #
+#                          vms.run shell-string patch                         #
+# --------------------------------------------------------------------------- #
 
 
-def _poll_delays(interval: float, max_wait: float) -> float:
-    """Jittered polling interval so concurrent clients don't stampede."""
-    jitter = interval * 0.1
-    return max(0.5, min(max_wait, interval + random.uniform(-jitter, jitter)))
+def _wrap_shell_command(command: Union[str, Sequence[str]]) -> List[str]:
+    """Accept either argv or a shell string; emit argv.
+
+    Guards against the Python-only footgun where passing a ``str`` to a
+    ``Sequence[str]`` parameter iterates into characters. If the user meant a
+    shell command, wrap it in ``["sh", "-c", ...]`` — the explicit form.
+    """
+    if isinstance(command, str):
+        return ["sh", "-c", command]
+    return list(command)
 
 
-def _require_exec_ok(command_preview: str, result: ExecResult) -> ExecResult:
-    """Raise ``VMExecError`` if an exec helper returned non-zero / timed out."""
-    if result.timed_out or result.exit_code != 0:
-        raise VMExecError(command_preview, result)
-    return result
+class _VmsResourceExt(VmsResource):
+    """``VmsResource`` whose ``run()`` accepts ``str`` *or* ``Sequence[str]``."""
+
+    def run(  # type: ignore[override]
+        self,
+        id: str,
+        *,
+        command: Union[str, Sequence[str]],
+        timeout_sec: Optional[int] = None,
+        **kwargs: Any,
+    ) -> ExecResult:
+        if timeout_sec is not None:
+            kwargs["timeout_sec"] = timeout_sec
+        return super().run(id, command=_wrap_shell_command(command), **kwargs)
+
+
+class _AsyncVmsResourceExt(AsyncVmsResource):
+    """Async twin of :class:`_VmsResourceExt`."""
+
+    async def run(  # type: ignore[override]
+        self,
+        id: str,
+        *,
+        command: Union[str, Sequence[str]],
+        timeout_sec: Optional[int] = None,
+        **kwargs: Any,
+    ) -> ExecResult:
+        if timeout_sec is not None:
+            kwargs["timeout_sec"] = timeout_sec
+        return await super().run(id, command=_wrap_shell_command(command), **kwargs)
 
 
 # --------------------------------------------------------------------------- #
-#                               Sync client                                   #
+#                              Sync client                                    #
 # --------------------------------------------------------------------------- #
 
 
@@ -77,24 +137,41 @@ class FastvmClient(Fastvm):
 
     Example::
 
+        from fastvm import FastvmClient
+
         with FastvmClient() as client:
-            client.warmup()
             vm = client.launch(machine_type="c1m2")
-            client.upload_file(vm.id, "./main.py", "/root/main.py")
-            result = client.run(vm.id, ["python3", "/root/main.py"])
-            client.download_file(vm.id, "/root/out.log", "./out.log")
+            client.upload(vm.id, "./src", "/root/src")
+            out = client.vms.run(vm.id, command="ls -la /root")
+            client.download(vm.id, "/root/out.log", "./out.log")
     """
 
-    # --------------------------- Lifecycle ------------------------------- #
+    def __init__(
+        self,
+        *args: Any,
+        http_client: Optional[httpx.Client] = None,
+        http2: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        # If the user didn't supply their own ``http_client``, build one with
+        # HTTP/2 enabled. Stainless's default is HTTP/1.1; HTTP/2 gives us
+        # multiplexing + header compression on the amortized TLS connection.
+        if http_client is None and http2:
+            http_client = httpx.Client(
+                http2=True,
+                timeout=DEFAULT_TIMEOUT,
+                limits=DEFAULT_CONNECTION_LIMITS,
+                follow_redirects=True,
+            )
+        super().__init__(*args, http_client=http_client, **kwargs)
 
-    def warmup(self) -> None:
-        """Pre-open the HTTP/2 connection to the scheduler.
+    @cached_property
+    def vms(self) -> _VmsResourceExt:  # type: ignore[override]
+        # Override Stainless's ``vms`` property so ``client.vms.run`` accepts
+        # shell strings in addition to argv arrays.
+        return _VmsResourceExt(self)
 
-        Hits ``GET /healthz`` so the connection + TLS handshake are amortized
-        before the first real call. Errors propagate — ``warmup`` is a request
-        like any other.
-        """
-        self.health()
+    # --------------------------- VM lifecycle ---------------------------- #
 
     def launch(
         self,
@@ -104,16 +181,17 @@ class FastvmClient(Fastvm):
         timeout: float = 300.0,
         **params: Any,
     ) -> Vm:
-        """``POST /v1/vms`` and (by default) wait until the VM is running.
+        """``POST /v1/vms`` and (by default) poll until the VM is running.
 
-        All other kwargs are forwarded to :meth:`VmsResource.launch`.
+        All other kwargs forward to :meth:`VmsResource.launch`.
 
-        Passing ``wait=False`` returns immediately with the initial VM (may be
-        in ``provisioning`` status), matching the raw generated call.
+        ``wait=False`` returns the initial VM even if it's still provisioning —
+        matches the raw generated call. ``timeout`` caps the total polling time
+        in seconds.
 
         Raises:
-          VMLaunchError: VM transitioned to a terminal failure status.
-          VMNotReadyError: VM did not become ``running`` within ``timeout``.
+          VMLaunchError: VM reached a terminal failure status.
+          VMNotReadyError: did not reach ``running`` within ``timeout``.
         """
         vm = self.vms.launch(**params)
         if not wait or vm.status == _RUNNING:
@@ -140,41 +218,68 @@ class FastvmClient(Fastvm):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise VMNotReadyError(vm_id, last_status, timeout)
-            time.sleep(min(_poll_delays(poll_interval, remaining), remaining))
-
-    def run(
-        self,
-        vm_id: str,
-        command: Sequence[str],
-        *,
-        timeout_sec: Optional[int] = None,
-        **kwargs: Any,
-    ) -> ExecResult:
-        """Short-form alias for ``client.vms.run(vm_id, command=...)``.
-
-        Positional ``command`` matches the old SDK. Under the hood this is the
-        same non-idempotent ``POST /v1/vms/{id}/exec`` — no auto-retry.
-        """
-        if timeout_sec is not None:
-            kwargs["timeout_sec"] = timeout_sec
-        return self.vms.run(vm_id, command=list(command), **kwargs)
+            time.sleep(min(_poll_delay(poll_interval, remaining), remaining))
 
     # --------------------------- File transfer --------------------------- #
 
-    def upload_file(
+    def upload(
         self,
         vm_id: str,
         local_path: str,
         remote_path: str,
         *,
-        fetch_timeout_sec: int = 300,
+        fetch_timeout_sec: int = 600,
+        exec_timeout_sec: int = 600,
     ) -> None:
-        """Copy a single local file into the VM at ``remote_path``.
+        """Copy a file or directory from the client into the VM.
 
-        Flow: ``presign`` → client PUTs the local file to the signed upload URL
-        → scheduler asks the VM to ``fetch`` the download URL into ``remote_path``.
+        Dispatches internally: if ``local_path`` is a directory, streams a
+        gzipped tar to the VM and extracts into ``remote_path``; otherwise
+        fetches the single file to ``remote_path`` directly.
         """
         local_path = os.path.abspath(local_path)
+        if not os.path.exists(local_path):
+            raise FileNotFoundError(local_path)
+        if os.path.isdir(local_path):
+            self._upload_dir(vm_id, local_path, remote_path, fetch_timeout_sec, exec_timeout_sec)
+        else:
+            self._upload_file(vm_id, local_path, remote_path, fetch_timeout_sec)
+
+    def download(
+        self,
+        vm_id: str,
+        remote_path: str,
+        local_path: str,
+        *,
+        exec_timeout_sec: int = 600,
+    ) -> None:
+        """Copy a file or directory from the VM to the client.
+
+        One extra VM-side ``test -d`` call classifies ``remote_path`` before
+        dispatching. Cheap (~one exec round-trip) and avoids surprising the
+        user with wrong layout semantics.
+        """
+        if self._vm_is_dir(vm_id, remote_path, exec_timeout_sec):
+            self._download_dir(vm_id, remote_path, local_path, exec_timeout_sec)
+        else:
+            self._download_file(vm_id, remote_path, local_path, exec_timeout_sec)
+
+    # ---- internal dispatch helpers -------------------------------------- #
+
+    def _vm_is_dir(self, vm_id: str, remote_path: str, exec_timeout_sec: int) -> bool:
+        # ``test -d`` exits 0 for dir, 1 for file/missing. ``test -e`` first so
+        # we can raise a clear error for missing paths rather than silently
+        # treating them as files.
+        result = self.vms.run(
+            vm_id,
+            command=["sh", "-c", f"test -e {shlex.quote(remote_path)} || exit 2; test -d {shlex.quote(remote_path)}"],
+            timeout_sec=exec_timeout_sec,
+        )
+        if result.exit_code == 2:
+            raise FileNotFoundError(f"VM path does not exist: {remote_path}")
+        return result.exit_code == 0
+
+    def _upload_file(self, vm_id: str, local_path: str, remote_path: str, fetch_timeout_sec: int) -> None:
         size = _stat_size(local_path)
         presigned = self.vms.files.presign(vm_id, path=remote_path)
         _assert_under_limit(size, presigned)
@@ -182,102 +287,70 @@ class FastvmClient(Fastvm):
             _http_put_stream(presigned.upload_url, f, size=size)
         self.vms.files.fetch(vm_id, url=presigned.download_url, path=remote_path, timeout_sec=fetch_timeout_sec)
 
-    def upload_directory(
-        self,
-        vm_id: str,
-        local_dir: str,
-        remote_dir: str,
-        *,
-        fetch_timeout_sec: int = 600,
-        exec_timeout_sec: int = 600,
+    def _upload_dir(
+        self, vm_id: str, local_dir: str, remote_dir: str, fetch_timeout_sec: int, exec_timeout_sec: int
     ) -> None:
-        """Copy a local directory tree into the VM at ``remote_dir``.
-
-        Client-side tars the tree, uploads the tarball to storage, has the VM
-        fetch it, then extracts into ``remote_dir`` and removes the staging
-        tarball. Tar contents are rooted at ``basename(local_dir)``.
-        """
-        local_dir = os.path.abspath(local_dir)
-        if not os.path.isdir(local_dir):
-            raise NotADirectoryError(local_dir)
         stage = _stage_tar_path("upload")
         presigned = self.vms.files.presign(vm_id, path=stage)
-
         _http_put_stream(presigned.upload_url, pack_directory_to_stream(local_dir))
         self.vms.files.fetch(vm_id, url=presigned.download_url, path=stage, timeout_sec=fetch_timeout_sec)
-
-        extract_cmd = (
-            f"set -eu; mkdir -p {quote_sh(remote_dir)}; "
-            f"tar xzf {quote_sh(stage)} -C {quote_sh(remote_dir)}; "
-            f"rm -f {quote_sh(stage)}"
+        extract = (
+            f"set -eu; mkdir -p {shlex.quote(remote_dir)}; "
+            f"tar xzf {shlex.quote(stage)} -C {shlex.quote(remote_dir)}; "
+            f"rm -f {shlex.quote(stage)}"
         )
-        _require_exec_ok(
-            extract_cmd,
-            self.vms.run(vm_id, command=["sh", "-c", extract_cmd], timeout_sec=exec_timeout_sec),
-        )
+        _require_exec_ok(extract, self.vms.run(vm_id, command=extract, timeout_sec=exec_timeout_sec))
 
-    def download_file(
-        self,
-        vm_id: str,
-        remote_path: str,
-        local_path: str,
-        *,
-        exec_timeout_sec: int = 300,
-    ) -> None:
-        """Copy a single file from the VM at ``remote_path`` to ``local_path``.
-
-        Flow: ``presign`` → VM ``curl -T <file>`` PUTs bytes to the upload URL
-        → client GETs the download URL and streams to ``local_path``.
-        """
+    def _download_file(self, vm_id: str, remote_path: str, local_path: str, exec_timeout_sec: int) -> None:
         presigned = self.vms.files.presign(vm_id, path=remote_path)
         cmd = (
-            f"set -eu; curl --fail --silent --show-error -T {quote_sh(remote_path)} "
-            f"-H 'Content-Type: {_PUT_CONTENT_TYPE}' {quote_sh(presigned.upload_url)}"
+            f"set -eu; curl --fail --silent --show-error -T {shlex.quote(remote_path)} "
+            f"-H 'Content-Type: {_PUT_CONTENT_TYPE}' {shlex.quote(presigned.upload_url)}"
         )
-        _require_exec_ok(
-            cmd,
-            self.vms.run(vm_id, command=["sh", "-c", cmd], timeout_sec=exec_timeout_sec),
-        )
-        os.makedirs(os.path.dirname(os.path.abspath(local_path)) or ".", exist_ok=True)
+        _require_exec_ok(cmd, self.vms.run(vm_id, command=cmd, timeout_sec=exec_timeout_sec))
+        parent = os.path.dirname(os.path.abspath(local_path)) or "."
+        os.makedirs(parent, exist_ok=True)
         _http_get_to_file(presigned.download_url, local_path)
 
-    def download_directory(
-        self,
-        vm_id: str,
-        remote_dir: str,
-        local_dir: str,
-        *,
-        exec_timeout_sec: int = 600,
-    ) -> None:
-        """Copy a directory tree from the VM at ``remote_dir`` to ``local_dir``.
-
-        VM-side ``tar czf - -C <parent> <name> | curl -T -`` produces a gzipped
-        tarball stream that the client then extracts locally.
-        """
+    def _download_dir(self, vm_id: str, remote_dir: str, local_dir: str, exec_timeout_sec: int) -> None:
         presigned = self.vms.files.presign(vm_id, path=_stage_tar_path("download"))
         cmd = (
-            f"set -eu; tar czf - -C {quote_sh(remote_dir)} . | "
+            f"set -eu; tar czf - -C {shlex.quote(remote_dir)} . | "
             f"curl --fail --silent --show-error -T - -H 'Content-Type: {_PUT_CONTENT_TYPE}' "
-            f"{quote_sh(presigned.upload_url)}"
+            f"{shlex.quote(presigned.upload_url)}"
         )
-        _require_exec_ok(
-            cmd,
-            self.vms.run(vm_id, command=["sh", "-c", cmd], timeout_sec=exec_timeout_sec),
-        )
+        _require_exec_ok(cmd, self.vms.run(vm_id, command=cmd, timeout_sec=exec_timeout_sec))
         os.makedirs(local_dir, exist_ok=True)
         _http_get_to_tar_extract(presigned.download_url, local_dir)
 
 
 # --------------------------------------------------------------------------- #
-#                               Async client                                  #
+#                              Async client                                   #
 # --------------------------------------------------------------------------- #
 
 
 class AsyncFastvmClient(AsyncFastvm):
     """Async twin of :class:`FastvmClient`."""
 
-    async def warmup(self) -> None:
-        await self.health()
+    def __init__(
+        self,
+        *args: Any,
+        http_client: Optional[httpx.AsyncClient] = None,
+        http2: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        if http_client is None and http2:
+            http_client = httpx.AsyncClient(
+                http2=True,
+                timeout=DEFAULT_TIMEOUT,
+                limits=DEFAULT_CONNECTION_LIMITS,
+                follow_redirects=True,
+            )
+        super().__init__(*args, http_client=http_client, **kwargs)
+
+    @cached_property
+    def vms(self) -> _AsyncVmsResourceExt:  # type: ignore[override]
+        return _AsyncVmsResourceExt(self)
 
     async def launch(
         self,
@@ -311,114 +384,112 @@ class AsyncFastvmClient(AsyncFastvm):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise VMNotReadyError(vm_id, last_status, timeout)
-            await asyncio.sleep(min(_poll_delays(poll_interval, remaining), remaining))
+            await asyncio.sleep(min(_poll_delay(poll_interval, remaining), remaining))
 
-    async def run(
-        self,
-        vm_id: str,
-        command: Sequence[str],
-        *,
-        timeout_sec: Optional[int] = None,
-        **kwargs: Any,
-    ) -> ExecResult:
-        if timeout_sec is not None:
-            kwargs["timeout_sec"] = timeout_sec
-        return await self.vms.run(vm_id, command=list(command), **kwargs)
-
-    async def upload_file(
+    async def upload(
         self,
         vm_id: str,
         local_path: str,
         remote_path: str,
         *,
-        fetch_timeout_sec: int = 300,
+        fetch_timeout_sec: int = 600,
+        exec_timeout_sec: int = 600,
     ) -> None:
         local_path = os.path.abspath(local_path)
+        if not await asyncio.to_thread(os.path.exists, local_path):
+            raise FileNotFoundError(local_path)
+        if await asyncio.to_thread(os.path.isdir, local_path):
+            await self._upload_dir(vm_id, local_path, remote_path, fetch_timeout_sec, exec_timeout_sec)
+        else:
+            await self._upload_file(vm_id, local_path, remote_path, fetch_timeout_sec)
+
+    async def download(
+        self,
+        vm_id: str,
+        remote_path: str,
+        local_path: str,
+        *,
+        exec_timeout_sec: int = 600,
+    ) -> None:
+        if await self._vm_is_dir(vm_id, remote_path, exec_timeout_sec):
+            await self._download_dir(vm_id, remote_path, local_path, exec_timeout_sec)
+        else:
+            await self._download_file(vm_id, remote_path, local_path, exec_timeout_sec)
+
+    async def _vm_is_dir(self, vm_id: str, remote_path: str, exec_timeout_sec: int) -> bool:
+        result = await self.vms.run(
+            vm_id,
+            command=["sh", "-c", f"test -e {shlex.quote(remote_path)} || exit 2; test -d {shlex.quote(remote_path)}"],
+            timeout_sec=exec_timeout_sec,
+        )
+        if result.exit_code == 2:
+            raise FileNotFoundError(f"VM path does not exist: {remote_path}")
+        return result.exit_code == 0
+
+    async def _upload_file(self, vm_id: str, local_path: str, remote_path: str, fetch_timeout_sec: int) -> None:
         size = await asyncio.to_thread(_stat_size, local_path)
         presigned = await self.vms.files.presign(vm_id, path=remote_path)
         _assert_under_limit(size, presigned)
         await _ahttp_put_file(presigned.upload_url, local_path, size=size)
         await self.vms.files.fetch(vm_id, url=presigned.download_url, path=remote_path, timeout_sec=fetch_timeout_sec)
 
-    async def upload_directory(
-        self,
-        vm_id: str,
-        local_dir: str,
-        remote_dir: str,
-        *,
-        fetch_timeout_sec: int = 600,
-        exec_timeout_sec: int = 600,
+    async def _upload_dir(
+        self, vm_id: str, local_dir: str, remote_dir: str, fetch_timeout_sec: int, exec_timeout_sec: int
     ) -> None:
-        local_dir = os.path.abspath(local_dir)
-        if not await asyncio.to_thread(os.path.isdir, local_dir):
-            raise NotADirectoryError(local_dir)
         stage = _stage_tar_path("upload")
         presigned = await self.vms.files.presign(vm_id, path=stage)
-
         await _ahttp_put_iter(presigned.upload_url, local_dir)
         await self.vms.files.fetch(vm_id, url=presigned.download_url, path=stage, timeout_sec=fetch_timeout_sec)
-
-        extract_cmd = (
-            f"set -eu; mkdir -p {quote_sh(remote_dir)}; "
-            f"tar xzf {quote_sh(stage)} -C {quote_sh(remote_dir)}; "
-            f"rm -f {quote_sh(stage)}"
+        extract = (
+            f"set -eu; mkdir -p {shlex.quote(remote_dir)}; "
+            f"tar xzf {shlex.quote(stage)} -C {shlex.quote(remote_dir)}; "
+            f"rm -f {shlex.quote(stage)}"
         )
-        _require_exec_ok(
-            extract_cmd,
-            await self.vms.run(vm_id, command=["sh", "-c", extract_cmd], timeout_sec=exec_timeout_sec),
-        )
+        _require_exec_ok(extract, await self.vms.run(vm_id, command=extract, timeout_sec=exec_timeout_sec))
 
-    async def download_file(
-        self,
-        vm_id: str,
-        remote_path: str,
-        local_path: str,
-        *,
-        exec_timeout_sec: int = 300,
-    ) -> None:
+    async def _download_file(self, vm_id: str, remote_path: str, local_path: str, exec_timeout_sec: int) -> None:
         presigned = await self.vms.files.presign(vm_id, path=remote_path)
         cmd = (
-            f"set -eu; curl --fail --silent --show-error -T {quote_sh(remote_path)} "
-            f"-H 'Content-Type: {_PUT_CONTENT_TYPE}' {quote_sh(presigned.upload_url)}"
+            f"set -eu; curl --fail --silent --show-error -T {shlex.quote(remote_path)} "
+            f"-H 'Content-Type: {_PUT_CONTENT_TYPE}' {shlex.quote(presigned.upload_url)}"
         )
-        _require_exec_ok(
-            cmd,
-            await self.vms.run(vm_id, command=["sh", "-c", cmd], timeout_sec=exec_timeout_sec),
-        )
+        _require_exec_ok(cmd, await self.vms.run(vm_id, command=cmd, timeout_sec=exec_timeout_sec))
         parent = os.path.dirname(os.path.abspath(local_path)) or "."
         await asyncio.to_thread(os.makedirs, parent, exist_ok=True)
         await _ahttp_get_to_file(presigned.download_url, local_path)
 
-    async def download_directory(
-        self,
-        vm_id: str,
-        remote_dir: str,
-        local_dir: str,
-        *,
-        exec_timeout_sec: int = 600,
-    ) -> None:
+    async def _download_dir(self, vm_id: str, remote_dir: str, local_dir: str, exec_timeout_sec: int) -> None:
         presigned = await self.vms.files.presign(vm_id, path=_stage_tar_path("download"))
         cmd = (
-            f"set -eu; tar czf - -C {quote_sh(remote_dir)} . | "
+            f"set -eu; tar czf - -C {shlex.quote(remote_dir)} . | "
             f"curl --fail --silent --show-error -T - -H 'Content-Type: {_PUT_CONTENT_TYPE}' "
-            f"{quote_sh(presigned.upload_url)}"
+            f"{shlex.quote(presigned.upload_url)}"
         )
-        _require_exec_ok(
-            cmd,
-            await self.vms.run(vm_id, command=["sh", "-c", cmd], timeout_sec=exec_timeout_sec),
-        )
+        _require_exec_ok(cmd, await self.vms.run(vm_id, command=cmd, timeout_sec=exec_timeout_sec))
         await asyncio.to_thread(os.makedirs, local_dir, exist_ok=True)
         await _ahttp_get_to_tar_extract(presigned.download_url, local_dir)
 
 
 # --------------------------------------------------------------------------- #
-#                               HTTP helpers                                  #
+#                               Shared helpers                                #
 # --------------------------------------------------------------------------- #
-#
-# These talk directly to the storage backend via presigned URLs — the
-# generated client can't be reused because it injects ``X-API-Key`` on every
-# request, and signed URLs reject unexpected headers.
-#
+
+
+def _poll_delay(interval: float, max_wait: float) -> float:
+    """Jittered polling interval so concurrent clients don't stampede."""
+    jitter = interval * 0.1
+    return max(0.5, min(max_wait, interval + random.uniform(-jitter, jitter)))
+
+
+def _stage_tar_path(tag: str) -> str:
+    """Unique-per-process tarball path inside the VM."""
+    return f"{_VM_STAGE_DIR}/fastvm-{tag}-{os.getpid()}-{random.randrange(1 << 30):x}.tar.gz"
+
+
+def _require_exec_ok(preview: str, result: ExecResult) -> ExecResult:
+    if result.timed_out or result.exit_code != 0:
+        raise VMExecError(preview, result)
+    return result
 
 
 def _stat_size(path: str) -> int:
@@ -431,6 +502,15 @@ def _stat_size(path: str) -> int:
 def _assert_under_limit(size: int, presigned: "PresignResponse") -> None:
     if size > presigned.max_upload_bytes:
         raise FileTransferError(f"upload size {size} exceeds VM limit {presigned.max_upload_bytes}")
+
+
+# --------------------------------------------------------------------------- #
+#                        HTTP helpers — storage backend                       #
+# --------------------------------------------------------------------------- #
+#
+# These bypass the generated client because signed URLs reject extra headers
+# (``X-API-Key``) that the Stainless client injects on every request.
+#
 
 
 def _http_put_stream(url: str, body: Any, *, size: Optional[int] = None) -> None:
@@ -455,7 +535,6 @@ def _http_get_to_tar_extract(url: str, dest_dir: str) -> None:
     with httpx.Client(timeout=_STORAGE_HTTP_TIMEOUT) as c:
         with c.stream("GET", url) as r:
             _raise_for_storage(r, op="download")
-            # ``tarfile`` wants a blocking read API; wrap the byte iterator.
             unpack_stream_to_directory(
                 cast(BinaryIO, _IterStream(r.iter_bytes(chunk_size=1 << 20))),
                 dest_dir,
@@ -540,8 +619,6 @@ def _raise_for_storage(r: httpx.Response, *, op: str) -> None:
 
 
 def _aiter_file(f: IO[bytes], chunk_size: int = 1 << 20) -> AsyncIterator[bytes]:
-    """Turn a sync file handle into an async byte iterator for httpx."""
-
     async def _gen() -> AsyncIterator[bytes]:
         while True:
             chunk: bytes = await asyncio.to_thread(f.read, chunk_size)
@@ -562,9 +639,8 @@ def _next_or_none(it: Iterator[bytes]) -> Optional[bytes]:
 class _IterStream:
     """Adapt a byte iterator to a minimal file-like object for ``tarfile``.
 
-    ``tarfile.open(fileobj=...)`` only touches ``read(n)`` on the object, so
-    we don't need a full ``BinaryIO`` — callers ``cast`` us to satisfy type
-    checkers.
+    ``tarfile.open(fileobj=...)`` only touches ``read(n)``, so we don't need
+    a full ``BinaryIO`` — callers ``cast`` us to satisfy type checkers.
     """
 
     def __init__(self, it: Iterator[bytes]) -> None:

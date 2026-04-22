@@ -1,13 +1,12 @@
 """Streaming tar helpers used by directory upload/download.
 
-These are plain sync functions. The async client runs them via ``anyio.to_thread``
+These are plain sync functions. The async client runs them via ``asyncio.to_thread``
 so we don't block the event loop on disk/CPU-bound tar work.
 """
 
 from __future__ import annotations
 
 import os
-import shlex
 import tarfile
 from typing import BinaryIO, Iterator
 
@@ -71,8 +70,3 @@ def unpack_stream_to_directory(stream: BinaryIO, dest_dir: str) -> None:
             tf.extractall(dest_dir, filter="data")  # type: ignore[arg-type]
         except TypeError:
             tf.extractall(dest_dir)
-
-
-def quote_sh(arg: str) -> str:
-    """``shlex.quote`` re-exported so call sites read clearly."""
-    return shlex.quote(arg)
