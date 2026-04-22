@@ -1,13 +1,5 @@
 # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 
-from .org import (
-    OrgResource,
-    AsyncOrgResource,
-    OrgResourceWithRawResponse,
-    AsyncOrgResourceWithRawResponse,
-    OrgResourceWithStreamingResponse,
-    AsyncOrgResourceWithStreamingResponse,
-)
 from .vms import (
     VmsResource,
     AsyncVmsResource,
@@ -16,29 +8,13 @@ from .vms import (
     VmsResourceWithStreamingResponse,
     AsyncVmsResourceWithStreamingResponse,
 )
-from .livez import (
-    LivezResource,
-    AsyncLivezResource,
-    LivezResourceWithRawResponse,
-    AsyncLivezResourceWithRawResponse,
-    LivezResourceWithStreamingResponse,
-    AsyncLivezResourceWithStreamingResponse,
-)
-from .readyz import (
-    ReadyzResource,
-    AsyncReadyzResource,
-    ReadyzResourceWithRawResponse,
-    AsyncReadyzResourceWithRawResponse,
-    ReadyzResourceWithStreamingResponse,
-    AsyncReadyzResourceWithStreamingResponse,
-)
-from .healthz import (
-    HealthzResource,
-    AsyncHealthzResource,
-    HealthzResourceWithRawResponse,
-    AsyncHealthzResourceWithRawResponse,
-    HealthzResourceWithStreamingResponse,
-    AsyncHealthzResourceWithStreamingResponse,
+from .quotas import (
+    QuotasResource,
+    AsyncQuotasResource,
+    QuotasResourceWithRawResponse,
+    AsyncQuotasResourceWithRawResponse,
+    QuotasResourceWithStreamingResponse,
+    AsyncQuotasResourceWithStreamingResponse,
 )
 from .snapshots import (
     SnapshotsResource,
@@ -50,24 +26,6 @@ from .snapshots import (
 )
 
 __all__ = [
-    "HealthzResource",
-    "AsyncHealthzResource",
-    "HealthzResourceWithRawResponse",
-    "AsyncHealthzResourceWithRawResponse",
-    "HealthzResourceWithStreamingResponse",
-    "AsyncHealthzResourceWithStreamingResponse",
-    "LivezResource",
-    "AsyncLivezResource",
-    "LivezResourceWithRawResponse",
-    "AsyncLivezResourceWithRawResponse",
-    "LivezResourceWithStreamingResponse",
-    "AsyncLivezResourceWithStreamingResponse",
-    "ReadyzResource",
-    "AsyncReadyzResource",
-    "ReadyzResourceWithRawResponse",
-    "AsyncReadyzResourceWithRawResponse",
-    "ReadyzResourceWithStreamingResponse",
-    "AsyncReadyzResourceWithStreamingResponse",
     "VmsResource",
     "AsyncVmsResource",
     "VmsResourceWithRawResponse",
@@ -80,10 +38,10 @@ __all__ = [
     "AsyncSnapshotsResourceWithRawResponse",
     "SnapshotsResourceWithStreamingResponse",
     "AsyncSnapshotsResourceWithStreamingResponse",
-    "OrgResource",
-    "AsyncOrgResource",
-    "OrgResourceWithRawResponse",
-    "AsyncOrgResourceWithRawResponse",
-    "OrgResourceWithStreamingResponse",
-    "AsyncOrgResourceWithStreamingResponse",
+    "QuotasResource",
+    "AsyncQuotasResource",
+    "QuotasResourceWithRawResponse",
+    "AsyncQuotasResourceWithRawResponse",
+    "QuotasResourceWithStreamingResponse",
+    "AsyncQuotasResourceWithStreamingResponse",
 ]

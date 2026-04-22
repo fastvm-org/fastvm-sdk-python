@@ -16,8 +16,8 @@ The full API of this library can be found in [api.md](api.md).
 ## Installation
 
 ```sh
-# install from this staging repo
-pip install git+ssh://git@github.com/stainless-sdks/fastvm-python.git
+# install from the production repo
+pip install git+ssh://git@github.com/fastvm-org/fastvm-sdk-python.git
 ```
 
 > [!NOTE]
@@ -28,11 +28,15 @@ pip install git+ssh://git@github.com/stainless-sdks/fastvm-python.git
 The full API of this library can be found in [api.md](api.md).
 
 ```python
+import os
 from fastvm import Fastvm
 
-client = Fastvm()
+client = Fastvm(
+    api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
+)
 
-client.healthz.check()
+vm = client.vms.launch()
+print(vm.id)
 ```
 
 While you can provide an `api_key` keyword argument,
@@ -45,14 +49,18 @@ so that your API Key is not stored in source control.
 Simply import `AsyncFastvm` instead of `Fastvm` and use `await` with each API call:
 
 ```python
+import os
 import asyncio
 from fastvm import AsyncFastvm
 
-client = AsyncFastvm()
+client = AsyncFastvm(
+    api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
+)
 
 
 async def main() -> None:
-    await client.healthz.check()
+    vm = await client.vms.launch()
+    print(vm.id)
 
 
 asyncio.run(main())
@@ -67,13 +75,14 @@ By default, the async client uses `httpx` for HTTP requests. However, for improv
 You can enable this by installing `aiohttp`:
 
 ```sh
-# install from this staging repo
-pip install 'fastvm[aiohttp] @ git+ssh://git@github.com/stainless-sdks/fastvm-python.git'
+# install from the production repo
+pip install 'fastvm[aiohttp] @ git+ssh://git@github.com/fastvm-org/fastvm-sdk-python.git'
 ```
 
 Then you can enable it by instantiating the client with `http_client=DefaultAioHttpClient()`:
 
 ```python
+import os
 import asyncio
 from fastvm import DefaultAioHttpClient
 from fastvm import AsyncFastvm
@@ -81,9 +90,11 @@ from fastvm import AsyncFastvm
 
 async def main() -> None:
     async with AsyncFastvm(
+        api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
         http_client=DefaultAioHttpClient(),
     ) as client:
-        await client.healthz.check()
+        vm = await client.vms.launch()
+        print(vm.id)
 
 
 asyncio.run(main())
@@ -107,10 +118,10 @@ from fastvm import Fastvm
 
 client = Fastvm()
 
-vm_instance = client.vms.create(
-    firewall={"mode": "open"},
+vm = client.vms.launch(
+    firewall={"mode": "mode"},
 )
-print(vm_instance.firewall)
+print(vm.firewall)
 ```
 
 ## Handling errors
@@ -129,7 +140,7 @@ from fastvm import Fastvm
 client = Fastvm()
 
 try:
-    client.healthz.check()
+    client.vms.launch()
 except fastvm.APIConnectionError as e:
     print("The server could not be reached")
     print(e.__cause__)  # an underlying Exception, likely raised within httpx.
@@ -172,7 +183,7 @@ client = Fastvm(
 )
 
 # Or, configure per-request:
-client.with_options(max_retries=5).healthz.check()
+client.with_options(max_retries=5).vms.launch()
 ```
 
 ### Timeouts
@@ -195,7 +206,7 @@ client = Fastvm(
 )
 
 # Override per-request:
-client.with_options(timeout=5.0).healthz.check()
+client.with_options(timeout=5.0).vms.launch()
 ```
 
 On timeout, an `APITimeoutError` is thrown.
@@ -236,16 +247,16 @@ The "raw" Response object can be accessed by prefixing `.with_raw_response.` to 
 from fastvm import Fastvm
 
 client = Fastvm()
-response = client.healthz.with_raw_response.check()
+response = client.vms.with_raw_response.launch()
 print(response.headers.get('X-My-Header'))
 
-healthz = response.parse()  # get the object that `healthz.check()` would have returned
-print(healthz)
+vm = response.parse()  # get the object that `vms.launch()` would have returned
+print(vm.id)
 ```
 
-These methods return an [`APIResponse`](https://github.com/stainless-sdks/fastvm-python/tree/main/src/fastvm/_response.py) object.
+These methods return an [`APIResponse`](https://github.com/fastvm-org/fastvm-sdk-python/tree/main/src/fastvm/_response.py) object.
 
-The async client returns an [`AsyncAPIResponse`](https://github.com/stainless-sdks/fastvm-python/tree/main/src/fastvm/_response.py) with the same structure, the only difference being `await`able methods for reading the response content.
+The async client returns an [`AsyncAPIResponse`](https://github.com/fastvm-org/fastvm-sdk-python/tree/main/src/fastvm/_response.py) with the same structure, the only difference being `await`able methods for reading the response content.
 
 #### `.with_streaming_response`
 
@@ -254,7 +265,7 @@ The above interface eagerly reads the full response body when you make the reque
 To stream the response body, use `.with_streaming_response` instead, which requires a context manager and only reads the response body once you call `.read()`, `.text()`, `.json()`, `.iter_bytes()`, `.iter_text()`, `.iter_lines()` or `.parse()`. In the async client, these are async methods.
 
 ```python
-with client.healthz.with_streaming_response.check() as response:
+with client.vms.with_streaming_response.launch() as response:
     print(response.headers.get("X-My-Header"))
 
     for line in response.iter_lines():
@@ -349,7 +360,7 @@ This package generally follows [SemVer](https://semver.org/spec/v2.0.0.html) con
 
 We take backwards-compatibility seriously and work hard to ensure you can rely on a smooth upgrade experience.
 
-We are keen for your feedback; please open an [issue](https://www.github.com/stainless-sdks/fastvm-python/issues) with questions, bugs, or suggestions.
+We are keen for your feedback; please open an [issue](https://www.github.com/fastvm-org/fastvm-sdk-python/issues) with questions, bugs, or suggestions.
 
 ### Determining the installed version
 
