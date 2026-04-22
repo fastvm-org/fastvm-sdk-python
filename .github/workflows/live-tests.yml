@@ -1,8 +1,13 @@
 name: Live tests
 
-# Hits the real FastVM API. Runs on-demand and nightly.
-# Requires the ``FASTVM_API_KEY`` repo secret; tests auto-skip otherwise.
+# Hits the real FastVM API. Runs alongside the offline CI on every PR and
+# push to main, plus on-demand and nightly. Requires the ``FASTVM_API_KEY``
+# repo secret; tests auto-skip when it's missing (fork PRs, etc.).
 on:
+  push:
+    branches:
+      - main
+  pull_request:
   workflow_dispatch:
     inputs:
       base_url:
@@ -15,15 +20,18 @@ on:
 permissions:
   contents: read
 
+# Per-ref serialization: a second push to a PR branch cancels the in-flight
+# run so we only burn VM quota on the latest commit. Main/scheduled/manual
+# runs don't cancel — each deserves to complete.
+concurrency:
+  group: fastvm-live-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   live:
     name: live
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    concurrency:
-      # Prevent concurrent live runs from fighting over quota / VMs.
-      group: fastvm-live-tests
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
 
