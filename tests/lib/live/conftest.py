@@ -53,7 +53,7 @@ def _require_key() -> str:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _stale_vm_sweep(client: FastvmClient) -> None:
+def _stale_vm_sweep(client: FastvmClient) -> None:  # pyright: ignore[reportUnusedFunction]
     """Delete leftover ``sdk-test-*`` VMs older than 15 min (once per worker)."""
     cutoff = datetime.now(timezone.utc) - _STALE_AFTER
     for v in client.vms.list():
