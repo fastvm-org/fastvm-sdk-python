@@ -69,21 +69,21 @@ def test_running_skips_polling(client: FastvmClient) -> None:
 
 def test_polls_until_running(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["provisioning", "provisioning", "running"]):
-        vm = client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
+        vm = client.vms.launch(machine_type="c1m2", poll_interval=0.01, wait_timeout=5)
     assert vm.status == "running"
 
 
 def test_terminal_status_raises(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["error"]):
         with pytest.raises(VMLaunchError) as exc:
-            client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
+            client.vms.launch(machine_type="c1m2", poll_interval=0.01, wait_timeout=5)
     assert exc.value.status == "error"
 
 
 def test_timeout_raises(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["provisioning"]):
         with pytest.raises(VMNotReadyError):
-            client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=0.0)
+            client.vms.launch(machine_type="c1m2", poll_interval=0.01, wait_timeout=0.0)
 
 
 def test_wait_false_returns_initial(client: FastvmClient) -> None:

@@ -95,8 +95,8 @@ Methods:
 
 Signature overrides on generated methods:
 
-- `client.vms.launch(\*, wait: bool = True, poll_interval: float = 2.0, timeout: float = 300.0, \*\*params) -> Vm`
-  Polls `GET /v1/vms/{id}` until `status == "running"` before returning. Pass `wait=False` to mirror the raw `POST /v1/vms` behaviour.
+- `client.vms.launch(\*, wait: bool = True, poll_interval: float = 2.0, wait_timeout: float = 300.0, \*\*params) -> Vm`
+  Polls `GET /v1/vms/{id}` until `status == "running"` before returning. Pass `wait=False` to mirror the raw `POST /v1/vms` behaviour. The generated `timeout` HTTP-request kwarg flows through `**params` unchanged.
 - `client.vms.run(id, command: str | Sequence[str], \*\*params) -> ExecResult`
   A shell string is auto-wrapped into `["sh", "-c", ...]`; argv lists pass through unchanged.
 

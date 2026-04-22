@@ -62,10 +62,12 @@ for immediate boots or `202` for queued VMs; the override polls
 `GET /v1/vms/{id}` until the VM is ready.
 
 ```python
-vm = client.vms.launch(machine_type="c1m2", poll_interval=2.0, timeout=300)
+vm = client.vms.launch(machine_type="c1m2", poll_interval=2.0, wait_timeout=300)
 # raises VMLaunchError on terminal status (error, stopped, deleting)
-# raises VMNotReadyError on timeout
+# raises VMNotReadyError on wait_timeout exceeded
 # pass wait=False to return the initial (possibly-queued) VM immediately
+# `timeout=N` still works — it's the raw HTTP request timeout and is
+# forwarded to the generated `VmsResource.launch` verbatim.
 ```
 
 Restore from snapshot: `client.vms.launch(snapshot_id="snp_…")`.

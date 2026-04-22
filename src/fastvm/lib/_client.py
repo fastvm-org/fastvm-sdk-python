@@ -119,22 +119,24 @@ class _VmsResourceExt(VmsResource):
         *,
         wait: bool = True,
         poll_interval: float = 2.0,
-        timeout: float = 300.0,
+        wait_timeout: float = 300.0,
         **params: Any,
     ) -> Vm:
         """``POST /v1/vms`` and (by default) poll until the VM reaches ``running``.
 
         Pass ``wait=False`` to mirror the raw generated call — returns the initial
-        (possibly queued) VM without polling.
+        (possibly queued) VM without polling. The generated ``timeout`` kwarg
+        (per-request HTTP timeout) passes through to ``super().launch`` via
+        ``**params``; ``wait_timeout`` is the polling deadline.
 
         Raises:
           VMLaunchError: VM reached a terminal failure status.
-          VMNotReadyError: did not reach ``running`` within ``timeout``.
+          VMNotReadyError: did not reach ``running`` within ``wait_timeout``.
         """
         vm = super().launch(**params)
         if not wait or vm.status == _RUNNING:
             return vm
-        return _poll_until_running_sync(self, vm.id, poll_interval, timeout)
+        return _poll_until_running_sync(self, vm.id, poll_interval, wait_timeout)
 
 
 class _AsyncVmsResourceExt(AsyncVmsResource):
@@ -157,13 +159,13 @@ class _AsyncVmsResourceExt(AsyncVmsResource):
         *,
         wait: bool = True,
         poll_interval: float = 2.0,
-        timeout: float = 300.0,
+        wait_timeout: float = 300.0,
         **params: Any,
     ) -> Vm:
         vm = await super().launch(**params)
         if not wait or vm.status == _RUNNING:
             return vm
-        return await _poll_until_running_async(self, vm.id, poll_interval, timeout)
+        return await _poll_until_running_async(self, vm.id, poll_interval, wait_timeout)
 
 
 # --------------------------------------------------------------------------- #
