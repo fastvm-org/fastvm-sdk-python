@@ -25,7 +25,7 @@ class ReadyzResource(SyncAPIResource):
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#accessing-raw-response-data-eg-headers
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
         return ReadyzResourceWithRawResponse(self)
 
@@ -34,7 +34,7 @@ class ReadyzResource(SyncAPIResource):
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#with_streaming_response
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
         return ReadyzResourceWithStreamingResponse(self)
 
@@ -70,7 +70,7 @@ class AsyncReadyzResource(AsyncAPIResource):
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#accessing-raw-response-data-eg-headers
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
         return AsyncReadyzResourceWithRawResponse(self)
 
@@ -79,7 +79,7 @@ class AsyncReadyzResource(AsyncAPIResource):
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#with_streaming_response
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
         return AsyncReadyzResourceWithStreamingResponse(self)
 

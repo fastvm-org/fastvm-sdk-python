@@ -32,7 +32,7 @@ class FirewallResource(SyncAPIResource):
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#accessing-raw-response-data-eg-headers
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
         return FirewallResourceWithRawResponse(self)
 
@@ -41,7 +41,7 @@ class FirewallResource(SyncAPIResource):
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#with_streaming_response
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
         return FirewallResourceWithStreamingResponse(self)
 
@@ -144,7 +144,7 @@ class AsyncFirewallResource(AsyncAPIResource):
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#accessing-raw-response-data-eg-headers
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
         return AsyncFirewallResourceWithRawResponse(self)
 
@@ -153,7 +153,7 @@ class AsyncFirewallResource(AsyncAPIResource):
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
-        For more information, see https://www.github.com/stainless-sdks/fastvm-python#with_streaming_response
+        For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
         return AsyncFirewallResourceWithStreamingResponse(self)
 
