@@ -136,7 +136,7 @@ def snap_restore(
             if name:
                 kwargs["name"] = name
             # Launch with ``snapshot_id`` set = the old SDK's ``restore(...)``.
-            vm = await client.launch(**kwargs)
+            vm = await client.vms.launch(**kwargs)
             if output_json:
                 print_json(vm)
             else:

@@ -31,7 +31,7 @@ def _wait_snapshot_ready(client: FastvmClient, snap_id: str, timeout: float = 18
 def test_wait_false(client: FastvmClient) -> None:
     """``launch(wait=False)`` returns the initial VM without polling;
     ``wait_for_vm_ready`` drives it the rest of the way."""
-    vm = client.launch(machine_type="c1m2", name=_name(), wait=False)
+    vm = client.vms.launch(machine_type="c1m2", name=_name(), wait=False)
     try:
         assert vm.id and vm.status in {"provisioning", "running", "queued", "pending"}
         ready = client.wait_for_vm_ready(vm.id, timeout=300)
@@ -52,7 +52,7 @@ def test_snapshot_restore(client: FastvmClient, vm: Vm) -> None:
     snap = client.snapshots.create(vm_id=vm.id, name=f"{vm.name}-snap")
     try:
         assert _wait_snapshot_ready(client, snap.id) in ("ready", "active")
-        restored = client.launch(snapshot_id=snap.id, name=_name())
+        restored = client.vms.launch(snapshot_id=snap.id, name=_name())
         try:
             out = client.vms.run(restored.id, command=["cat", marker_path])
             assert out.stdout.strip() == "sentinel"

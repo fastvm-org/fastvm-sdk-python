@@ -96,7 +96,11 @@ def _wrap_shell_command(command: Union[str, Sequence[str]]) -> List[str]:
 
 
 class _VmsResourceExt(VmsResource):
-    """``VmsResource`` whose ``run()`` accepts ``str`` *or* ``Sequence[str]``."""
+    """``VmsResource`` with two overrides over the generated methods:
+
+    * ``run()`` — accepts a shell string in addition to argv.
+    * ``launch()`` — polls until ``status=="running"`` by default.
+    """
 
     def run(  # type: ignore[override]
         self,
@@ -109,6 +113,28 @@ class _VmsResourceExt(VmsResource):
         if timeout_sec is not None:
             kwargs["timeout_sec"] = timeout_sec
         return super().run(id, command=_wrap_shell_command(command), **kwargs)
+
+    def launch(  # type: ignore[override]
+        self,
+        *,
+        wait: bool = True,
+        poll_interval: float = 2.0,
+        timeout: float = 300.0,
+        **params: Any,
+    ) -> Vm:
+        """``POST /v1/vms`` and (by default) poll until the VM reaches ``running``.
+
+        Pass ``wait=False`` to mirror the raw generated call — returns the initial
+        (possibly queued) VM without polling.
+
+        Raises:
+          VMLaunchError: VM reached a terminal failure status.
+          VMNotReadyError: did not reach ``running`` within ``timeout``.
+        """
+        vm = super().launch(**params)
+        if not wait or vm.status == _RUNNING:
+            return vm
+        return _poll_until_running_sync(self, vm.id, poll_interval, timeout)
 
 
 class _AsyncVmsResourceExt(AsyncVmsResource):
@@ -126,6 +152,53 @@ class _AsyncVmsResourceExt(AsyncVmsResource):
             kwargs["timeout_sec"] = timeout_sec
         return await super().run(id, command=_wrap_shell_command(command), **kwargs)
 
+    async def launch(  # type: ignore[override]
+        self,
+        *,
+        wait: bool = True,
+        poll_interval: float = 2.0,
+        timeout: float = 300.0,
+        **params: Any,
+    ) -> Vm:
+        vm = await super().launch(**params)
+        if not wait or vm.status == _RUNNING:
+            return vm
+        return await _poll_until_running_async(self, vm.id, poll_interval, timeout)
+
+
+# --------------------------------------------------------------------------- #
+#                      Upstream-bug workarounds (shared)                      #
+# --------------------------------------------------------------------------- #
+
+
+# Mirror of the Stainless-generated default in ``src/fastvm/_client.py``.
+# If Stainless ever changes this we'll regenerate and notice the diff.
+_FALLBACK_BASE_URL = "https://api.fastvm.org"
+
+
+def _normalize_base_url(kwargs: dict[str, Any]) -> None:
+    """Coerce a set-but-empty ``base_url`` / ``FASTVM_BASE_URL`` to the default.
+
+    Stainless's generated ``__init__`` resolves base_url via::
+
+        if base_url is None:
+            base_url = os.environ.get("FASTVM_BASE_URL")
+        if base_url is None:
+            base_url = "https://api.fastvm.org"
+
+    Both checks are ``is None``, so an empty string from either source
+    escapes both and produces an invalid empty URL. We pre-resolve with
+    ``or``-chaining and pass the result explicitly so super() never re-reads
+    the broken env var. Tracking upstream at
+    https://github.com/openai/openai-python/issues/2927 — same codegen
+    template, same bug, still not merged there at time of writing.
+    """
+    explicit = kwargs.get("base_url")
+    if explicit:
+        return  # user gave us a truthy value, nothing to do
+    env = os.environ.get("FASTVM_BASE_URL")
+    kwargs["base_url"] = env or _FALLBACK_BASE_URL
+
 
 # --------------------------------------------------------------------------- #
 #                              Sync client                                    #
@@ -140,7 +213,7 @@ class FastvmClient(Fastvm):
         from fastvm import FastvmClient
 
         with FastvmClient() as client:
-            vm = client.launch(machine_type="c1m2")
+            vm = client.vms.launch(machine_type="c1m2")
             client.upload(vm.id, "./src", "/root/src")
             out = client.vms.run(vm.id, command="ls -la /root")
             client.download(vm.id, "/root/out.log", "./out.log")
@@ -153,10 +226,14 @@ class FastvmClient(Fastvm):
         http2: bool = True,
         **kwargs: Any,
     ) -> None:
-        # If the user didn't supply their own ``http_client``, build one with
-        # HTTP/2 enabled. Stainless's default is HTTP/1.1; HTTP/2 gives us
-        # multiplexing + header compression on the amortized TLS connection.
+        # Upstream bug workaround (openai-python#2927 / Stainless template):
+        # the generated ``if base_url is None`` chain treats ``FASTVM_BASE_URL=""``
+        # as a valid URL instead of falling back to the default. Normalise
+        # empty strings to None *before* calling ``super().__init__``.
+        _normalize_base_url(kwargs)
         if http_client is None and http2:
+            # HTTP/2 for multiplexing + header compression; Stainless defaults
+            # to HTTP/1.1.
             http_client = httpx.Client(
                 http2=True,
                 timeout=DEFAULT_TIMEOUT,
@@ -173,31 +250,6 @@ class FastvmClient(Fastvm):
 
     # --------------------------- VM lifecycle ---------------------------- #
 
-    def launch(
-        self,
-        *,
-        wait: bool = True,
-        poll_interval: float = 2.0,
-        timeout: float = 300.0,
-        **params: Any,
-    ) -> Vm:
-        """``POST /v1/vms`` and (by default) poll until the VM is running.
-
-        All other kwargs forward to :meth:`VmsResource.launch`.
-
-        ``wait=False`` returns the initial VM even if it's still provisioning —
-        matches the raw generated call. ``timeout`` caps the total polling time
-        in seconds.
-
-        Raises:
-          VMLaunchError: VM reached a terminal failure status.
-          VMNotReadyError: did not reach ``running`` within ``timeout``.
-        """
-        vm = self.vms.launch(**params)
-        if not wait or vm.status == _RUNNING:
-            return vm
-        return self.wait_for_vm_ready(vm.id, poll_interval=poll_interval, timeout=timeout)
-
     def wait_for_vm_ready(
         self,
         vm_id: str,
@@ -205,20 +257,13 @@ class FastvmClient(Fastvm):
         poll_interval: float = 2.0,
         timeout: float = 300.0,
     ) -> Vm:
-        """Poll ``GET /v1/vms/{id}`` until status is ``running`` or terminal."""
-        deadline = time.monotonic() + timeout
-        last_status = "unknown"
-        while True:
-            vm = self.vms.retrieve(vm_id)
-            last_status = vm.status
-            if vm.status == _RUNNING:
-                return vm
-            if vm.status in _TERMINAL_FAILURE:
-                raise VMLaunchError(vm_id, vm.status)
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise VMNotReadyError(vm_id, last_status, timeout)
-            time.sleep(min(_poll_delay(poll_interval, remaining), remaining))
+        """Poll ``GET /v1/vms/{id}`` until status is ``running`` or terminal.
+
+        Standalone poller — use this when you already have a ``vm_id`` (e.g. from
+        ``client.vms.list()``). For the "launch a VM and wait" flow, use
+        ``client.vms.launch(...)`` directly; it polls by default.
+        """
+        return _poll_until_running_sync(self.vms, vm_id, poll_interval, timeout)
 
     # --------------------------- File transfer --------------------------- #
 
@@ -339,6 +384,7 @@ class AsyncFastvmClient(AsyncFastvm):
         http2: bool = True,
         **kwargs: Any,
     ) -> None:
+        _normalize_base_url(kwargs)  # see FastvmClient.__init__
         if http_client is None and http2:
             http_client = httpx.AsyncClient(
                 http2=True,
@@ -352,19 +398,6 @@ class AsyncFastvmClient(AsyncFastvm):
     def vms(self) -> _AsyncVmsResourceExt:  # type: ignore[override]
         return _AsyncVmsResourceExt(self)
 
-    async def launch(
-        self,
-        *,
-        wait: bool = True,
-        poll_interval: float = 2.0,
-        timeout: float = 300.0,
-        **params: Any,
-    ) -> Vm:
-        vm = await self.vms.launch(**params)
-        if not wait or vm.status == _RUNNING:
-            return vm
-        return await self.wait_for_vm_ready(vm.id, poll_interval=poll_interval, timeout=timeout)
-
     async def wait_for_vm_ready(
         self,
         vm_id: str,
@@ -372,19 +405,7 @@ class AsyncFastvmClient(AsyncFastvm):
         poll_interval: float = 2.0,
         timeout: float = 300.0,
     ) -> Vm:
-        deadline = time.monotonic() + timeout
-        last_status = "unknown"
-        while True:
-            vm = await self.vms.retrieve(vm_id)
-            last_status = vm.status
-            if vm.status == _RUNNING:
-                return vm
-            if vm.status in _TERMINAL_FAILURE:
-                raise VMLaunchError(vm_id, vm.status)
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise VMNotReadyError(vm_id, last_status, timeout)
-            await asyncio.sleep(min(_poll_delay(poll_interval, remaining), remaining))
+        return await _poll_until_running_async(self.vms, vm_id, poll_interval, timeout)
 
     async def upload(
         self,
@@ -479,6 +500,42 @@ def _poll_delay(interval: float, max_wait: float) -> float:
     """Jittered polling interval so concurrent clients don't stampede."""
     jitter = interval * 0.1
     return max(0.5, min(max_wait, interval + random.uniform(-jitter, jitter)))
+
+
+def _poll_until_running_sync(
+    vms: VmsResource, vm_id: str, poll_interval: float, timeout: float
+) -> Vm:
+    deadline = time.monotonic() + timeout
+    last_status = "unknown"
+    while True:
+        vm = vms.retrieve(vm_id)
+        last_status = vm.status
+        if vm.status == _RUNNING:
+            return vm
+        if vm.status in _TERMINAL_FAILURE:
+            raise VMLaunchError(vm_id, vm.status)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise VMNotReadyError(vm_id, last_status, timeout)
+        time.sleep(min(_poll_delay(poll_interval, remaining), remaining))
+
+
+async def _poll_until_running_async(
+    vms: AsyncVmsResource, vm_id: str, poll_interval: float, timeout: float
+) -> Vm:
+    deadline = time.monotonic() + timeout
+    last_status = "unknown"
+    while True:
+        vm = await vms.retrieve(vm_id)
+        last_status = vm.status
+        if vm.status == _RUNNING:
+            return vm
+        if vm.status in _TERMINAL_FAILURE:
+            raise VMLaunchError(vm_id, vm.status)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise VMNotReadyError(vm_id, last_status, timeout)
+        await asyncio.sleep(min(_poll_delay(poll_interval, remaining), remaining))
 
 
 def _stage_tar_path(tag: str) -> str:

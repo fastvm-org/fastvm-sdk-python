@@ -1,4 +1,4 @@
-"""launch() polling: success, terminal failure, timeout, wait=False."""
+"""``client.vms.launch`` polling: success, terminal failure, timeout, wait=False."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import pytest
 from fastvm import FastvmClient, VMLaunchError, VMNotReadyError
 from fastvm._compat import parse_obj
 from fastvm.types.vm import Vm
+from fastvm.resources.vms.vms import VmsResource
 
 
 def _vm(status: str) -> Vm:
@@ -39,15 +40,16 @@ def client() -> Iterator[FastvmClient]:
 
 
 def _mock_launch(client: FastvmClient, *, initial: str, transitions: List[str] | None = None):
-    """Returns a context manager that mocks vms.launch + vms.retrieve + time.sleep.
+    """Context manager that stubs the *raw* launch + retrieve + ``time.sleep``.
 
-    `initial` is the status returned by POST; `transitions` is the sequence of
-    statuses returned by each subsequent GET poll.
+    ``_VmsResourceExt.launch`` (our override) calls ``super().launch(**params)``,
+    so we patch the parent ``VmsResource.launch`` to inject the initial status.
+    Retrieve is patched per-instance because it's inherited, not overridden.
     """
     from contextlib import ExitStack
 
     stack = ExitStack()
-    stack.enter_context(patch.object(client.vms, "launch", return_value=_vm(initial)))
+    stack.enter_context(patch.object(VmsResource, "launch", return_value=_vm(initial)))
     if transitions is not None:
         queue = list(transitions)
         last = transitions[-1]
@@ -62,28 +64,28 @@ def _mock_launch(client: FastvmClient, *, initial: str, transitions: List[str] |
 
 def test_running_skips_polling(client: FastvmClient) -> None:
     with _mock_launch(client, initial="running"):
-        assert client.launch(machine_type="c1m2").status == "running"
+        assert client.vms.launch(machine_type="c1m2").status == "running"
 
 
 def test_polls_until_running(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["provisioning", "provisioning", "running"]):
-        vm = client.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
+        vm = client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
     assert vm.status == "running"
 
 
 def test_terminal_status_raises(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["error"]):
         with pytest.raises(VMLaunchError) as exc:
-            client.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
+            client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
     assert exc.value.status == "error"
 
 
 def test_timeout_raises(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning", transitions=["provisioning"]):
         with pytest.raises(VMNotReadyError):
-            client.launch(machine_type="c1m2", poll_interval=0.01, timeout=0.0)
+            client.vms.launch(machine_type="c1m2", poll_interval=0.01, timeout=0.0)
 
 
 def test_wait_false_returns_initial(client: FastvmClient) -> None:
     with _mock_launch(client, initial="provisioning"):
-        assert client.launch(machine_type="c1m2", wait=False).status == "provisioning"
+        assert client.vms.launch(machine_type="c1m2", wait=False).status == "provisioning"
