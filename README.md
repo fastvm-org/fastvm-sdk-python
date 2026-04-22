@@ -5,7 +5,9 @@
 > [`fastvm-mono/stainless.yml`](https://github.com/fastvm-org/fastvm-mono/blob/main/stainless.yml)
 > (see the `readme.example_requests` and `targets.python.readme_title` keys).
 
-For CLI usage and the small set of hand-written ergonomic helpers, see
-[`CLI.md`](CLI.md).
+For the `fastvm` CLI and the small set of hand-written ergonomic helpers
+(`launch`, `upload`, `download`, shell-string auto-wrap on `vms.run`), see
+[`helpers.md`](helpers.md). The generated method reference is in
+[`api.md`](api.md).
 
 Docs: <https://fastvm.org/docs>.

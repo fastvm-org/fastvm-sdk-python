@@ -75,3 +75,27 @@ from fastvm.types import OrgQuotaUsage, OrgQuotaValues
 Methods:
 
 - <code title="get /v1/org/quotas">client.quotas.<a href="./src/fastvm/resources/quotas.py">retrieve</a>() -> <a href="./src/fastvm/types/org_quota_usage.py">OrgQuotaUsage</a></code>
+
+# Helpers
+
+Hand-written convenience methods on top of the generated client. Source:
+[`src/fastvm/lib/`](./src/fastvm/lib/). Full docs: [`helpers.md`](./helpers.md).
+
+Errors:
+
+```python
+from fastvm import VMLaunchError, VMNotReadyError, VMExecError, FileTransferError
+```
+
+Methods:
+
+- <code>client.<a href="./src/fastvm/lib/_client.py">launch</a>(\*args) -> <a href="./src/fastvm/types/vm.py">Vm</a></code>
+- <code>client.<a href="./src/fastvm/lib/_client.py">wait_for_vm_ready</a>(vm_id, \*args) -> <a href="./src/fastvm/types/vm.py">Vm</a></code>
+- <code>client.<a href="./src/fastvm/lib/_client.py">upload</a>(vm_id, local_path, remote_path, \*args) -> None</code>
+- <code>client.<a href="./src/fastvm/lib/_client.py">download</a>(vm_id, remote_path, local_path, \*args) -> None</code>
+
+Signature overrides on generated methods:
+
+- <code title="post /v1/vms/{id}/exec">client.vms.<a href="./src/fastvm/lib/_client.py">run</a>(id, command: str | Sequence[str], \*\*<a href="src/fastvm/types/vm_run_params.py">params</a>) -> <a href="./src/fastvm/types/exec_result.py">ExecResult</a></code>
+
+  A shell string is auto-wrapped into `["sh", "-c", ...]`; argv lists pass through unchanged.
