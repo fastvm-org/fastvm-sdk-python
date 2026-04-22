@@ -27,7 +27,6 @@ import pytest_asyncio
 from fastvm import FastvmClient, AsyncFastvmClient
 from fastvm.types.vm import Vm
 
-
 _NAME_PREFIX = "sdk-test-"
 _STALE_AFTER = timedelta(minutes=15)
 
