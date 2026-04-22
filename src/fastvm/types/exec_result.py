@@ -4,10 +4,10 @@ from pydantic import Field as FieldInfo
 
 from .._models import BaseModel
 
-__all__ = ["VmExecuteCommandResponse"]
+__all__ = ["ExecResult"]
 
 
-class VmExecuteCommandResponse(BaseModel):
+class ExecResult(BaseModel):
     duration_ms: int = FieldInfo(alias="durationMs")
 
     exit_code: int = FieldInfo(alias="exitCode")

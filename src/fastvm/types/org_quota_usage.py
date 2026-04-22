@@ -5,10 +5,10 @@ from pydantic import Field as FieldInfo
 from .._models import BaseModel
 from .org_quota_values import OrgQuotaValues
 
-__all__ = ["OrgRetrieveQuotasResponse"]
+__all__ = ["OrgQuotaUsage"]
 
 
-class OrgRetrieveQuotasResponse(BaseModel):
+class OrgQuotaUsage(BaseModel):
     limits: OrgQuotaValues
 
     org_id: str = FieldInfo(alias="orgId")
