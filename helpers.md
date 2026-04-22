@@ -95,7 +95,7 @@ unchanged.
 ### HTTP/2 by default
 
 `FastvmClient` / `AsyncFastvmClient` configure `httpx.Client(http2=True)` by
-default. Override with `http2=False` or pass your own `http_client=`.
+default. Override with `http2=False` or passs your own `http_client=`.
 
 ### Error types
 
