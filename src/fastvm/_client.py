@@ -11,7 +11,9 @@ import httpx
 from . import _exceptions
 from ._qs import Querystring
 from ._types import (
+    Body,
     Omit,
+    Query,
     Headers,
     Timeout,
     NotGiven,
@@ -22,22 +24,26 @@ from ._types import (
 )
 from ._utils import is_given, get_async_library
 from ._compat import cached_property
-from ._models import SecurityOptions
 from ._version import __version__
+from ._response import (
+    to_raw_response_wrapper,
+    to_streamed_response_wrapper,
+    async_to_raw_response_wrapper,
+    async_to_streamed_response_wrapper,
+)
 from ._streaming import Stream as Stream, AsyncStream as AsyncStream
-from ._exceptions import APIStatusError
+from ._exceptions import FastvmError, APIStatusError
 from ._base_client import (
     DEFAULT_MAX_RETRIES,
     SyncAPIClient,
     AsyncAPIClient,
+    make_request_options,
 )
+from .types.health_response import HealthResponse
 
 if TYPE_CHECKING:
-    from .resources import org, vms, livez, readyz, healthz, snapshots
-    from .resources.org import OrgResource, AsyncOrgResource
-    from .resources.livez import LivezResource, AsyncLivezResource
-    from .resources.readyz import ReadyzResource, AsyncReadyzResource
-    from .resources.healthz import HealthzResource, AsyncHealthzResource
+    from .resources import vms, quotas, snapshots
+    from .resources.quotas import QuotasResource, AsyncQuotasResource
     from .resources.vms.vms import VmsResource, AsyncVmsResource
     from .resources.snapshots import SnapshotsResource, AsyncSnapshotsResource
 
@@ -46,14 +52,12 @@ __all__ = ["Timeout", "Transport", "ProxiesTypes", "RequestOptions", "Fastvm", "
 
 class Fastvm(SyncAPIClient):
     # client options
-    api_key: str | None
-    bearer_token: str | None
+    api_key: str
 
     def __init__(
         self,
         *,
         api_key: str | None = None,
-        bearer_token: str | None = None,
         base_url: str | httpx.URL | None = None,
         timeout: float | Timeout | None | NotGiven = not_given,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -75,17 +79,15 @@ class Fastvm(SyncAPIClient):
     ) -> None:
         """Construct a new synchronous Fastvm client instance.
 
-        This automatically infers the following arguments from their corresponding environment variables if they are not provided:
-        - `api_key` from `FASTVM_API_KEY`
-        - `bearer_token` from `FASTVM_BEARER_TOKEN`
+        This automatically infers the `api_key` argument from the `FASTVM_API_KEY` environment variable if it is not provided.
         """
         if api_key is None:
             api_key = os.environ.get("FASTVM_API_KEY")
+        if api_key is None:
+            raise FastvmError(
+                "The api_key client option must be set either by passing api_key to the client or by setting the FASTVM_API_KEY environment variable"
+            )
         self.api_key = api_key
-
-        if bearer_token is None:
-            bearer_token = os.environ.get("FASTVM_BEARER_TOKEN")
-        self.bearer_token = bearer_token
 
         if base_url is None:
             base_url = os.environ.get("FASTVM_BASE_URL")
@@ -104,24 +106,6 @@ class Fastvm(SyncAPIClient):
         )
 
     @cached_property
-    def healthz(self) -> HealthzResource:
-        from .resources.healthz import HealthzResource
-
-        return HealthzResource(self)
-
-    @cached_property
-    def livez(self) -> LivezResource:
-        from .resources.livez import LivezResource
-
-        return LivezResource(self)
-
-    @cached_property
-    def readyz(self) -> ReadyzResource:
-        from .resources.readyz import ReadyzResource
-
-        return ReadyzResource(self)
-
-    @cached_property
     def vms(self) -> VmsResource:
         from .resources.vms import VmsResource
 
@@ -129,15 +113,17 @@ class Fastvm(SyncAPIClient):
 
     @cached_property
     def snapshots(self) -> SnapshotsResource:
+        """Snapshot lifecycle"""
         from .resources.snapshots import SnapshotsResource
 
         return SnapshotsResource(self)
 
     @cached_property
-    def org(self) -> OrgResource:
-        from .resources.org import OrgResource
+    def quotas(self) -> QuotasResource:
+        """Org quotas and usage"""
+        from .resources.quotas import QuotasResource
 
-        return OrgResource(self)
+        return QuotasResource(self)
 
     @cached_property
     def with_raw_response(self) -> FastvmWithRawResponse:
@@ -152,26 +138,11 @@ class Fastvm(SyncAPIClient):
     def qs(self) -> Querystring:
         return Querystring(array_format="comma")
 
+    @property
     @override
-    def _auth_headers(self, security: SecurityOptions) -> dict[str, str]:
-        return {
-            **(self._api_key_auth if security.get("api_key_auth", False) else {}),
-            **(self._bearer_auth if security.get("bearer_auth", False) else {}),
-        }
-
-    @property
-    def _api_key_auth(self) -> dict[str, str]:
+    def auth_headers(self) -> dict[str, str]:
         api_key = self.api_key
-        if api_key is None:
-            return {}
         return {"X-API-Key": api_key}
-
-    @property
-    def _bearer_auth(self) -> dict[str, str]:
-        bearer_token = self.bearer_token
-        if bearer_token is None:
-            return {}
-        return {"Authorization": f"Bearer {bearer_token}"}
 
     @property
     @override
@@ -182,23 +153,10 @@ class Fastvm(SyncAPIClient):
             **self._custom_headers,
         }
 
-    @override
-    def _validate_headers(self, headers: Headers, custom_headers: Headers) -> None:
-        if headers.get("X-API-Key") or isinstance(custom_headers.get("X-API-Key"), Omit):
-            return
-
-        if headers.get("Authorization") or isinstance(custom_headers.get("Authorization"), Omit):
-            return
-
-        raise TypeError(
-            '"Could not resolve authentication method. Expected either api_key or bearer_token to be set. Or for one of the `X-API-Key` or `Authorization` headers to be explicitly omitted"'
-        )
-
     def copy(
         self,
         *,
         api_key: str | None = None,
-        bearer_token: str | None = None,
         base_url: str | httpx.URL | None = None,
         timeout: float | Timeout | None | NotGiven = not_given,
         http_client: httpx.Client | None = None,
@@ -233,7 +191,6 @@ class Fastvm(SyncAPIClient):
         http_client = http_client or self._client
         return self.__class__(
             api_key=api_key or self.api_key,
-            bearer_token=bearer_token or self.bearer_token,
             base_url=base_url or self.base_url,
             timeout=self.timeout if isinstance(timeout, NotGiven) else timeout,
             http_client=http_client,
@@ -246,6 +203,29 @@ class Fastvm(SyncAPIClient):
     # Alias for `copy` for nicer inline usage, e.g.
     # client.with_options(timeout=10).foo.create(...)
     with_options = copy
+
+    def health(
+        self,
+        *,
+        # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
+        # The extra values given here take precedence over values defined on the client or passed to this method.
+        extra_headers: Headers | None = None,
+        extra_query: Query | None = None,
+        extra_body: Body | None = None,
+        timeout: float | httpx.Timeout | None | NotGiven = not_given,
+    ) -> HealthResponse:
+        """Returns 200 when the scheduler is reachable.
+
+        SDK clients call this on startup to
+        warm HTTP/2 connections before the first real request.
+        """
+        return self.get(
+            "/healthz",
+            options=make_request_options(
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+            ),
+            cast_to=HealthResponse,
+        )
 
     @override
     def _make_status_error(
@@ -283,14 +263,12 @@ class Fastvm(SyncAPIClient):
 
 class AsyncFastvm(AsyncAPIClient):
     # client options
-    api_key: str | None
-    bearer_token: str | None
+    api_key: str
 
     def __init__(
         self,
         *,
         api_key: str | None = None,
-        bearer_token: str | None = None,
         base_url: str | httpx.URL | None = None,
         timeout: float | Timeout | None | NotGiven = not_given,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -312,17 +290,15 @@ class AsyncFastvm(AsyncAPIClient):
     ) -> None:
         """Construct a new async AsyncFastvm client instance.
 
-        This automatically infers the following arguments from their corresponding environment variables if they are not provided:
-        - `api_key` from `FASTVM_API_KEY`
-        - `bearer_token` from `FASTVM_BEARER_TOKEN`
+        This automatically infers the `api_key` argument from the `FASTVM_API_KEY` environment variable if it is not provided.
         """
         if api_key is None:
             api_key = os.environ.get("FASTVM_API_KEY")
+        if api_key is None:
+            raise FastvmError(
+                "The api_key client option must be set either by passing api_key to the client or by setting the FASTVM_API_KEY environment variable"
+            )
         self.api_key = api_key
-
-        if bearer_token is None:
-            bearer_token = os.environ.get("FASTVM_BEARER_TOKEN")
-        self.bearer_token = bearer_token
 
         if base_url is None:
             base_url = os.environ.get("FASTVM_BASE_URL")
@@ -341,24 +317,6 @@ class AsyncFastvm(AsyncAPIClient):
         )
 
     @cached_property
-    def healthz(self) -> AsyncHealthzResource:
-        from .resources.healthz import AsyncHealthzResource
-
-        return AsyncHealthzResource(self)
-
-    @cached_property
-    def livez(self) -> AsyncLivezResource:
-        from .resources.livez import AsyncLivezResource
-
-        return AsyncLivezResource(self)
-
-    @cached_property
-    def readyz(self) -> AsyncReadyzResource:
-        from .resources.readyz import AsyncReadyzResource
-
-        return AsyncReadyzResource(self)
-
-    @cached_property
     def vms(self) -> AsyncVmsResource:
         from .resources.vms import AsyncVmsResource
 
@@ -366,15 +324,17 @@ class AsyncFastvm(AsyncAPIClient):
 
     @cached_property
     def snapshots(self) -> AsyncSnapshotsResource:
+        """Snapshot lifecycle"""
         from .resources.snapshots import AsyncSnapshotsResource
 
         return AsyncSnapshotsResource(self)
 
     @cached_property
-    def org(self) -> AsyncOrgResource:
-        from .resources.org import AsyncOrgResource
+    def quotas(self) -> AsyncQuotasResource:
+        """Org quotas and usage"""
+        from .resources.quotas import AsyncQuotasResource
 
-        return AsyncOrgResource(self)
+        return AsyncQuotasResource(self)
 
     @cached_property
     def with_raw_response(self) -> AsyncFastvmWithRawResponse:
@@ -389,26 +349,11 @@ class AsyncFastvm(AsyncAPIClient):
     def qs(self) -> Querystring:
         return Querystring(array_format="comma")
 
+    @property
     @override
-    def _auth_headers(self, security: SecurityOptions) -> dict[str, str]:
-        return {
-            **(self._api_key_auth if security.get("api_key_auth", False) else {}),
-            **(self._bearer_auth if security.get("bearer_auth", False) else {}),
-        }
-
-    @property
-    def _api_key_auth(self) -> dict[str, str]:
+    def auth_headers(self) -> dict[str, str]:
         api_key = self.api_key
-        if api_key is None:
-            return {}
         return {"X-API-Key": api_key}
-
-    @property
-    def _bearer_auth(self) -> dict[str, str]:
-        bearer_token = self.bearer_token
-        if bearer_token is None:
-            return {}
-        return {"Authorization": f"Bearer {bearer_token}"}
 
     @property
     @override
@@ -419,23 +364,10 @@ class AsyncFastvm(AsyncAPIClient):
             **self._custom_headers,
         }
 
-    @override
-    def _validate_headers(self, headers: Headers, custom_headers: Headers) -> None:
-        if headers.get("X-API-Key") or isinstance(custom_headers.get("X-API-Key"), Omit):
-            return
-
-        if headers.get("Authorization") or isinstance(custom_headers.get("Authorization"), Omit):
-            return
-
-        raise TypeError(
-            '"Could not resolve authentication method. Expected either api_key or bearer_token to be set. Or for one of the `X-API-Key` or `Authorization` headers to be explicitly omitted"'
-        )
-
     def copy(
         self,
         *,
         api_key: str | None = None,
-        bearer_token: str | None = None,
         base_url: str | httpx.URL | None = None,
         timeout: float | Timeout | None | NotGiven = not_given,
         http_client: httpx.AsyncClient | None = None,
@@ -470,7 +402,6 @@ class AsyncFastvm(AsyncAPIClient):
         http_client = http_client or self._client
         return self.__class__(
             api_key=api_key or self.api_key,
-            bearer_token=bearer_token or self.bearer_token,
             base_url=base_url or self.base_url,
             timeout=self.timeout if isinstance(timeout, NotGiven) else timeout,
             http_client=http_client,
@@ -483,6 +414,29 @@ class AsyncFastvm(AsyncAPIClient):
     # Alias for `copy` for nicer inline usage, e.g.
     # client.with_options(timeout=10).foo.create(...)
     with_options = copy
+
+    async def health(
+        self,
+        *,
+        # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
+        # The extra values given here take precedence over values defined on the client or passed to this method.
+        extra_headers: Headers | None = None,
+        extra_query: Query | None = None,
+        extra_body: Body | None = None,
+        timeout: float | httpx.Timeout | None | NotGiven = not_given,
+    ) -> HealthResponse:
+        """Returns 200 when the scheduler is reachable.
+
+        SDK clients call this on startup to
+        warm HTTP/2 connections before the first real request.
+        """
+        return await self.get(
+            "/healthz",
+            options=make_request_options(
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+            ),
+            cast_to=HealthResponse,
+        )
 
     @override
     def _make_status_error(
@@ -524,23 +478,9 @@ class FastvmWithRawResponse:
     def __init__(self, client: Fastvm) -> None:
         self._client = client
 
-    @cached_property
-    def healthz(self) -> healthz.HealthzResourceWithRawResponse:
-        from .resources.healthz import HealthzResourceWithRawResponse
-
-        return HealthzResourceWithRawResponse(self._client.healthz)
-
-    @cached_property
-    def livez(self) -> livez.LivezResourceWithRawResponse:
-        from .resources.livez import LivezResourceWithRawResponse
-
-        return LivezResourceWithRawResponse(self._client.livez)
-
-    @cached_property
-    def readyz(self) -> readyz.ReadyzResourceWithRawResponse:
-        from .resources.readyz import ReadyzResourceWithRawResponse
-
-        return ReadyzResourceWithRawResponse(self._client.readyz)
+        self.health = to_raw_response_wrapper(
+            client.health,
+        )
 
     @cached_property
     def vms(self) -> vms.VmsResourceWithRawResponse:
@@ -550,15 +490,17 @@ class FastvmWithRawResponse:
 
     @cached_property
     def snapshots(self) -> snapshots.SnapshotsResourceWithRawResponse:
+        """Snapshot lifecycle"""
         from .resources.snapshots import SnapshotsResourceWithRawResponse
 
         return SnapshotsResourceWithRawResponse(self._client.snapshots)
 
     @cached_property
-    def org(self) -> org.OrgResourceWithRawResponse:
-        from .resources.org import OrgResourceWithRawResponse
+    def quotas(self) -> quotas.QuotasResourceWithRawResponse:
+        """Org quotas and usage"""
+        from .resources.quotas import QuotasResourceWithRawResponse
 
-        return OrgResourceWithRawResponse(self._client.org)
+        return QuotasResourceWithRawResponse(self._client.quotas)
 
 
 class AsyncFastvmWithRawResponse:
@@ -567,23 +509,9 @@ class AsyncFastvmWithRawResponse:
     def __init__(self, client: AsyncFastvm) -> None:
         self._client = client
 
-    @cached_property
-    def healthz(self) -> healthz.AsyncHealthzResourceWithRawResponse:
-        from .resources.healthz import AsyncHealthzResourceWithRawResponse
-
-        return AsyncHealthzResourceWithRawResponse(self._client.healthz)
-
-    @cached_property
-    def livez(self) -> livez.AsyncLivezResourceWithRawResponse:
-        from .resources.livez import AsyncLivezResourceWithRawResponse
-
-        return AsyncLivezResourceWithRawResponse(self._client.livez)
-
-    @cached_property
-    def readyz(self) -> readyz.AsyncReadyzResourceWithRawResponse:
-        from .resources.readyz import AsyncReadyzResourceWithRawResponse
-
-        return AsyncReadyzResourceWithRawResponse(self._client.readyz)
+        self.health = async_to_raw_response_wrapper(
+            client.health,
+        )
 
     @cached_property
     def vms(self) -> vms.AsyncVmsResourceWithRawResponse:
@@ -593,15 +521,17 @@ class AsyncFastvmWithRawResponse:
 
     @cached_property
     def snapshots(self) -> snapshots.AsyncSnapshotsResourceWithRawResponse:
+        """Snapshot lifecycle"""
         from .resources.snapshots import AsyncSnapshotsResourceWithRawResponse
 
         return AsyncSnapshotsResourceWithRawResponse(self._client.snapshots)
 
     @cached_property
-    def org(self) -> org.AsyncOrgResourceWithRawResponse:
-        from .resources.org import AsyncOrgResourceWithRawResponse
+    def quotas(self) -> quotas.AsyncQuotasResourceWithRawResponse:
+        """Org quotas and usage"""
+        from .resources.quotas import AsyncQuotasResourceWithRawResponse
 
-        return AsyncOrgResourceWithRawResponse(self._client.org)
+        return AsyncQuotasResourceWithRawResponse(self._client.quotas)
 
 
 class FastvmWithStreamedResponse:
@@ -610,23 +540,9 @@ class FastvmWithStreamedResponse:
     def __init__(self, client: Fastvm) -> None:
         self._client = client
 
-    @cached_property
-    def healthz(self) -> healthz.HealthzResourceWithStreamingResponse:
-        from .resources.healthz import HealthzResourceWithStreamingResponse
-
-        return HealthzResourceWithStreamingResponse(self._client.healthz)
-
-    @cached_property
-    def livez(self) -> livez.LivezResourceWithStreamingResponse:
-        from .resources.livez import LivezResourceWithStreamingResponse
-
-        return LivezResourceWithStreamingResponse(self._client.livez)
-
-    @cached_property
-    def readyz(self) -> readyz.ReadyzResourceWithStreamingResponse:
-        from .resources.readyz import ReadyzResourceWithStreamingResponse
-
-        return ReadyzResourceWithStreamingResponse(self._client.readyz)
+        self.health = to_streamed_response_wrapper(
+            client.health,
+        )
 
     @cached_property
     def vms(self) -> vms.VmsResourceWithStreamingResponse:
@@ -636,15 +552,17 @@ class FastvmWithStreamedResponse:
 
     @cached_property
     def snapshots(self) -> snapshots.SnapshotsResourceWithStreamingResponse:
+        """Snapshot lifecycle"""
         from .resources.snapshots import SnapshotsResourceWithStreamingResponse
 
         return SnapshotsResourceWithStreamingResponse(self._client.snapshots)
 
     @cached_property
-    def org(self) -> org.OrgResourceWithStreamingResponse:
-        from .resources.org import OrgResourceWithStreamingResponse
+    def quotas(self) -> quotas.QuotasResourceWithStreamingResponse:
+        """Org quotas and usage"""
+        from .resources.quotas import QuotasResourceWithStreamingResponse
 
-        return OrgResourceWithStreamingResponse(self._client.org)
+        return QuotasResourceWithStreamingResponse(self._client.quotas)
 
 
 class AsyncFastvmWithStreamedResponse:
@@ -653,23 +571,9 @@ class AsyncFastvmWithStreamedResponse:
     def __init__(self, client: AsyncFastvm) -> None:
         self._client = client
 
-    @cached_property
-    def healthz(self) -> healthz.AsyncHealthzResourceWithStreamingResponse:
-        from .resources.healthz import AsyncHealthzResourceWithStreamingResponse
-
-        return AsyncHealthzResourceWithStreamingResponse(self._client.healthz)
-
-    @cached_property
-    def livez(self) -> livez.AsyncLivezResourceWithStreamingResponse:
-        from .resources.livez import AsyncLivezResourceWithStreamingResponse
-
-        return AsyncLivezResourceWithStreamingResponse(self._client.livez)
-
-    @cached_property
-    def readyz(self) -> readyz.AsyncReadyzResourceWithStreamingResponse:
-        from .resources.readyz import AsyncReadyzResourceWithStreamingResponse
-
-        return AsyncReadyzResourceWithStreamingResponse(self._client.readyz)
+        self.health = async_to_streamed_response_wrapper(
+            client.health,
+        )
 
     @cached_property
     def vms(self) -> vms.AsyncVmsResourceWithStreamingResponse:
@@ -679,15 +583,17 @@ class AsyncFastvmWithStreamedResponse:
 
     @cached_property
     def snapshots(self) -> snapshots.AsyncSnapshotsResourceWithStreamingResponse:
+        """Snapshot lifecycle"""
         from .resources.snapshots import AsyncSnapshotsResourceWithStreamingResponse
 
         return AsyncSnapshotsResourceWithStreamingResponse(self._client.snapshots)
 
     @cached_property
-    def org(self) -> org.AsyncOrgResourceWithStreamingResponse:
-        from .resources.org import AsyncOrgResourceWithStreamingResponse
+    def quotas(self) -> quotas.AsyncQuotasResourceWithStreamingResponse:
+        """Org quotas and usage"""
+        from .resources.quotas import AsyncQuotasResourceWithStreamingResponse
 
-        return AsyncOrgResourceWithStreamingResponse(self._client.org)
+        return AsyncQuotasResourceWithStreamingResponse(self._client.quotas)
 
 
 Client = Fastvm

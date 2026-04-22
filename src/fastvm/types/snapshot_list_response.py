@@ -3,8 +3,8 @@
 from typing import List
 from typing_extensions import TypeAlias
 
-from .snapshot_object import SnapshotObject
+from .snapshot import Snapshot
 
 __all__ = ["SnapshotListResponse"]
 
-SnapshotListResponse: TypeAlias = List[SnapshotObject]
+SnapshotListResponse: TypeAlias = List[Snapshot]

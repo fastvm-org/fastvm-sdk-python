@@ -2,10 +2,10 @@
 
 from .._models import BaseModel
 
-__all__ = ["DeleteResponse"]
+__all__ = ["SnapshotDeleteResponse"]
 
 
-class DeleteResponse(BaseModel):
+class SnapshotDeleteResponse(BaseModel):
     id: str
 
     deleted: bool

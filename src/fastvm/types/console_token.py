@@ -4,12 +4,16 @@ from pydantic import Field as FieldInfo
 
 from .._models import BaseModel
 
-__all__ = ["VmIssueConsoleTokenResponse"]
+__all__ = ["ConsoleToken"]
 
 
-class VmIssueConsoleTokenResponse(BaseModel):
+class ConsoleToken(BaseModel):
     token: str
 
     expires_in_sec: int = FieldInfo(alias="expiresInSec")
 
     websocket_path: str = FieldInfo(alias="websocketPath")
+    """
+    Relative WebSocket path; combine with your API host as
+    `wss://<host><websocketPath>?session=<token>`.
+    """

@@ -16,14 +16,16 @@ from .._response import (
     async_to_streamed_response_wrapper,
 )
 from .._base_client import make_request_options
-from ..types.delete_response import DeleteResponse
-from ..types.snapshot_object import SnapshotObject
+from ..types.snapshot import Snapshot
 from ..types.snapshot_list_response import SnapshotListResponse
+from ..types.snapshot_delete_response import SnapshotDeleteResponse
 
 __all__ = ["SnapshotsResource", "AsyncSnapshotsResource"]
 
 
 class SnapshotsResource(SyncAPIResource):
+    """Snapshot lifecycle"""
+
     @cached_property
     def with_raw_response(self) -> SnapshotsResourceWithRawResponse:
         """
@@ -54,11 +56,15 @@ class SnapshotsResource(SyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> SnapshotObject:
+    ) -> Snapshot:
         """
-        Create a snapshot from a VM id
+        Create a snapshot
 
         Args:
+          name: Snapshot name (trimmed + whitespace-collapsed, max 64 runes; longer values are
+              truncated server-side). Auto-generated as `snapshot-<8-char-vmId-prefix>` if
+              empty.
+
           extra_headers: Send extra headers
 
           extra_query: Add additional query parameters to the request
@@ -79,21 +85,21 @@ class SnapshotsResource(SyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=SnapshotObject,
+            cast_to=Snapshot,
         )
 
     def update(
         self,
         id: str,
         *,
-        name: str,
+        name: str | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
         # The extra values given here take precedence over values defined on the client or passed to this method.
         extra_headers: Headers | None = None,
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> SnapshotObject:
+    ) -> Snapshot:
         """
         Rename a snapshot
 
@@ -114,7 +120,7 @@ class SnapshotsResource(SyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=SnapshotObject,
+            cast_to=Snapshot,
         )
 
     def list(
@@ -127,7 +133,7 @@ class SnapshotsResource(SyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> SnapshotListResponse:
-        """List snapshots for the authenticated organization"""
+        """List snapshots"""
         return self._get(
             "/v1/snapshots",
             options=make_request_options(
@@ -146,7 +152,7 @@ class SnapshotsResource(SyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> DeleteResponse:
+    ) -> SnapshotDeleteResponse:
         """
         Delete a snapshot
 
@@ -166,11 +172,13 @@ class SnapshotsResource(SyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=DeleteResponse,
+            cast_to=SnapshotDeleteResponse,
         )
 
 
 class AsyncSnapshotsResource(AsyncAPIResource):
+    """Snapshot lifecycle"""
+
     @cached_property
     def with_raw_response(self) -> AsyncSnapshotsResourceWithRawResponse:
         """
@@ -201,11 +209,15 @@ class AsyncSnapshotsResource(AsyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> SnapshotObject:
+    ) -> Snapshot:
         """
-        Create a snapshot from a VM id
+        Create a snapshot
 
         Args:
+          name: Snapshot name (trimmed + whitespace-collapsed, max 64 runes; longer values are
+              truncated server-side). Auto-generated as `snapshot-<8-char-vmId-prefix>` if
+              empty.
+
           extra_headers: Send extra headers
 
           extra_query: Add additional query parameters to the request
@@ -226,21 +238,21 @@ class AsyncSnapshotsResource(AsyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=SnapshotObject,
+            cast_to=Snapshot,
         )
 
     async def update(
         self,
         id: str,
         *,
-        name: str,
+        name: str | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
         # The extra values given here take precedence over values defined on the client or passed to this method.
         extra_headers: Headers | None = None,
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> SnapshotObject:
+    ) -> Snapshot:
         """
         Rename a snapshot
 
@@ -261,7 +273,7 @@ class AsyncSnapshotsResource(AsyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=SnapshotObject,
+            cast_to=Snapshot,
         )
 
     async def list(
@@ -274,7 +286,7 @@ class AsyncSnapshotsResource(AsyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> SnapshotListResponse:
-        """List snapshots for the authenticated organization"""
+        """List snapshots"""
         return await self._get(
             "/v1/snapshots",
             options=make_request_options(
@@ -293,7 +305,7 @@ class AsyncSnapshotsResource(AsyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> DeleteResponse:
+    ) -> SnapshotDeleteResponse:
         """
         Delete a snapshot
 
@@ -313,7 +325,7 @@ class AsyncSnapshotsResource(AsyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=DeleteResponse,
+            cast_to=SnapshotDeleteResponse,
         )
 
 

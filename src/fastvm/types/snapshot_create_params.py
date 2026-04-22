@@ -13,3 +13,8 @@ class SnapshotCreateParams(TypedDict, total=False):
     vm_id: Required[Annotated[str, PropertyInfo(alias="vmId")]]
 
     name: str
+    """
+    Snapshot name (trimmed + whitespace-collapsed, max 64 runes; longer values are
+    truncated server-side). Auto-generated as `snapshot-<8-char-vmId-prefix>` if
+    empty.
+    """

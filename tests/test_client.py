@@ -23,7 +23,7 @@ from fastvm import Fastvm, AsyncFastvm, APIResponseValidationError
 from fastvm._types import Omit
 from fastvm._utils import asyncify
 from fastvm._models import BaseModel, FinalRequestOptions
-from fastvm._exceptions import APIStatusError, APITimeoutError, APIResponseValidationError
+from fastvm._exceptions import FastvmError, APIStatusError, APITimeoutError, APIResponseValidationError
 from fastvm._base_client import (
     DEFAULT_TIMEOUT,
     HTTPX_DEFAULT_TIMEOUT,
@@ -40,7 +40,6 @@ from .utils import update_env
 T = TypeVar("T")
 base_url = os.environ.get("TEST_API_BASE_URL", "http://127.0.0.1:4010")
 api_key = "My API Key"
-bearer_token = "My Bearer Token"
 
 
 def _get_params(client: BaseClient[Any, Any]) -> dict[str, str]:
@@ -141,10 +140,6 @@ class TestFastvm:
         assert copied.api_key == "another My API Key"
         assert client.api_key == "My API Key"
 
-        copied = client.copy(bearer_token="another My Bearer Token")
-        assert copied.bearer_token == "another My Bearer Token"
-        assert client.bearer_token == "My Bearer Token"
-
     def test_copy_default_options(self, client: Fastvm) -> None:
         # options that have a default are overridden correctly
         copied = client.copy(max_retries=7)
@@ -163,11 +158,7 @@ class TestFastvm:
 
     def test_copy_default_headers(self) -> None:
         client = Fastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_headers={"X-Foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_headers={"X-Foo": "bar"}
         )
         assert client.default_headers["X-Foo"] == "bar"
 
@@ -202,11 +193,7 @@ class TestFastvm:
 
     def test_copy_default_query(self) -> None:
         client = Fastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_query={"foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_query={"foo": "bar"}
         )
         assert _get_params(client)["foo"] == "bar"
 
@@ -331,13 +318,7 @@ class TestFastvm:
         assert timeout == httpx.Timeout(100.0)
 
     def test_client_timeout_option(self) -> None:
-        client = Fastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            timeout=httpx.Timeout(0),
-        )
+        client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True, timeout=httpx.Timeout(0))
 
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
         timeout = httpx.Timeout(**request.extensions["timeout"])  # type: ignore
@@ -349,11 +330,7 @@ class TestFastvm:
         # custom timeout given to the httpx client should be used
         with httpx.Client(timeout=None) as http_client:
             client = Fastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -365,11 +342,7 @@ class TestFastvm:
         # no timeout given to the httpx client should not use the httpx default
         with httpx.Client() as http_client:
             client = Fastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -381,11 +354,7 @@ class TestFastvm:
         # explicitly passing the default timeout currently results in it being ignored
         with httpx.Client(timeout=HTTPX_DEFAULT_TIMEOUT) as http_client:
             client = Fastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -400,18 +369,13 @@ class TestFastvm:
                 Fastvm(
                     base_url=base_url,
                     api_key=api_key,
-                    bearer_token=bearer_token,
                     _strict_response_validation=True,
                     http_client=cast(Any, http_client),
                 )
 
     def test_default_headers_option(self) -> None:
         test_client = Fastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_headers={"X-Foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_headers={"X-Foo": "bar"}
         )
         request = test_client._build_request(FinalRequestOptions(method="get", url="/foo"))
         assert request.headers.get("x-foo") == "bar"
@@ -420,7 +384,6 @@ class TestFastvm:
         test_client2 = Fastvm(
             base_url=base_url,
             api_key=api_key,
-            bearer_token=bearer_token,
             _strict_response_validation=True,
             default_headers={
                 "X-Foo": "stainless",
@@ -435,34 +398,18 @@ class TestFastvm:
         test_client2.close()
 
     def test_validate_headers(self) -> None:
-        client = Fastvm(base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True)
+        client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
         assert request.headers.get("X-API-Key") == api_key
 
-        with update_env(
-            **{
-                "FASTVM_API_KEY": Omit(),
-                "FASTVM_BEARER_TOKEN": Omit(),
-            }
-        ):
-            client2 = Fastvm(base_url=base_url, api_key=None, bearer_token=None, _strict_response_validation=True)
-
-        with pytest.raises(
-            TypeError,
-            match="Could not resolve authentication method. Expected either api_key or bearer_token to be set. Or for one of the `X-API-Key` or `Authorization` headers to be explicitly omitted",
-        ):
-            client2._build_request(FinalRequestOptions(method="get", url="/foo"))
-
-        request2 = client2._build_request(FinalRequestOptions(method="get", url="/foo", headers={"X-API-Key": Omit()}))
-        assert request2.headers.get("X-API-Key") is None
+        with pytest.raises(FastvmError):
+            with update_env(**{"FASTVM_API_KEY": Omit()}):
+                client2 = Fastvm(base_url=base_url, api_key=None, _strict_response_validation=True)
+            _ = client2
 
     def test_default_query_option(self) -> None:
         client = Fastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_query={"query_param": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_query={"query_param": "bar"}
         )
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
         url = httpx.URL(request.url)
@@ -659,7 +606,6 @@ class TestFastvm:
         with Fastvm(
             base_url=base_url,
             api_key=api_key,
-            bearer_token=bearer_token,
             _strict_response_validation=True,
             http_client=httpx.Client(transport=MockTransport(handler=mock_handler)),
         ) as client:
@@ -753,12 +699,7 @@ class TestFastvm:
         assert response.foo == 2
 
     def test_base_url_setter(self) -> None:
-        client = Fastvm(
-            base_url="https://example.com/from_init",
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-        )
+        client = Fastvm(base_url="https://example.com/from_init", api_key=api_key, _strict_response_validation=True)
         assert client.base_url == "https://example.com/from_init/"
 
         client.base_url = "https://example.com/from_setter"  # type: ignore[assignment]
@@ -769,22 +710,16 @@ class TestFastvm:
 
     def test_base_url_env(self) -> None:
         with update_env(FASTVM_BASE_URL="http://localhost:5000/from/env"):
-            client = Fastvm(api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True)
+            client = Fastvm(api_key=api_key, _strict_response_validation=True)
             assert client.base_url == "http://localhost:5000/from/env/"
 
     @pytest.mark.parametrize(
         "client",
         [
+            Fastvm(base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True),
             Fastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-            ),
-            Fastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.Client(),
             ),
@@ -805,16 +740,10 @@ class TestFastvm:
     @pytest.mark.parametrize(
         "client",
         [
+            Fastvm(base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True),
             Fastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-            ),
-            Fastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.Client(),
             ),
@@ -835,16 +764,10 @@ class TestFastvm:
     @pytest.mark.parametrize(
         "client",
         [
+            Fastvm(base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True),
             Fastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-            ),
-            Fastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.Client(),
             ),
@@ -863,9 +786,7 @@ class TestFastvm:
         client.close()
 
     def test_copied_client_does_not_close_http(self) -> None:
-        test_client = Fastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        test_client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         assert not test_client.is_closed()
 
         copied = test_client.copy()
@@ -876,9 +797,7 @@ class TestFastvm:
         assert not test_client.is_closed()
 
     def test_client_context_manager(self) -> None:
-        test_client = Fastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        test_client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         with test_client as c2:
             assert c2 is test_client
             assert not c2.is_closed()
@@ -899,13 +818,7 @@ class TestFastvm:
 
     def test_client_max_retries_validation(self) -> None:
         with pytest.raises(TypeError, match=r"max_retries cannot be None"):
-            Fastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                max_retries=cast(Any, None),
-            )
+            Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True, max_retries=cast(Any, None))
 
     @pytest.mark.respx(base_url=base_url)
     def test_received_text_for_expected_json(self, respx_mock: MockRouter) -> None:
@@ -914,16 +827,12 @@ class TestFastvm:
 
         respx_mock.get("/foo").mock(return_value=httpx.Response(200, text="my-custom-format"))
 
-        strict_client = Fastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        strict_client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
 
         with pytest.raises(APIResponseValidationError):
             strict_client.get("/foo", cast_to=Model)
 
-        non_strict_client = Fastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=False
-        )
+        non_strict_client = Fastvm(base_url=base_url, api_key=api_key, _strict_response_validation=False)
 
         response = non_strict_client.get("/foo", cast_to=Model)
         assert isinstance(response, str)  # type: ignore[unreachable]
@@ -964,20 +873,20 @@ class TestFastvm:
     @mock.patch("fastvm._base_client.BaseClient._calculate_retry_timeout", _low_retry_timeout)
     @pytest.mark.respx(base_url=base_url)
     def test_retrying_timeout_errors_doesnt_leak(self, respx_mock: MockRouter, client: Fastvm) -> None:
-        respx_mock.get("/healthz").mock(side_effect=httpx.TimeoutException("Test timeout error"))
+        respx_mock.post("/v1/vms").mock(side_effect=httpx.TimeoutException("Test timeout error"))
 
         with pytest.raises(APITimeoutError):
-            client.healthz.with_streaming_response.check().__enter__()
+            client.vms.with_streaming_response.launch().__enter__()
 
         assert _get_open_connections(client) == 0
 
     @mock.patch("fastvm._base_client.BaseClient._calculate_retry_timeout", _low_retry_timeout)
     @pytest.mark.respx(base_url=base_url)
     def test_retrying_status_errors_doesnt_leak(self, respx_mock: MockRouter, client: Fastvm) -> None:
-        respx_mock.get("/healthz").mock(return_value=httpx.Response(500))
+        respx_mock.post("/v1/vms").mock(return_value=httpx.Response(500))
 
         with pytest.raises(APIStatusError):
-            client.healthz.with_streaming_response.check().__enter__()
+            client.vms.with_streaming_response.launch().__enter__()
         assert _get_open_connections(client) == 0
 
     @pytest.mark.parametrize("failures_before_success", [0, 2, 4])
@@ -1004,9 +913,9 @@ class TestFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = client.healthz.with_raw_response.check()
+        response = client.vms.with_raw_response.launch()
 
         assert response.retries_taken == failures_before_success
         assert int(response.http_request.headers.get("x-stainless-retry-count")) == failures_before_success
@@ -1028,9 +937,9 @@ class TestFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = client.healthz.with_raw_response.check(extra_headers={"x-stainless-retry-count": Omit()})
+        response = client.vms.with_raw_response.launch(extra_headers={"x-stainless-retry-count": Omit()})
 
         assert len(response.http_request.headers.get_list("x-stainless-retry-count")) == 0
 
@@ -1051,9 +960,9 @@ class TestFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = client.healthz.with_raw_response.check(extra_headers={"x-stainless-retry-count": "42"})
+        response = client.vms.with_raw_response.launch(extra_headers={"x-stainless-retry-count": "42"})
 
         assert response.http_request.headers.get("x-stainless-retry-count") == "42"
 
@@ -1142,10 +1051,6 @@ class TestAsyncFastvm:
         assert copied.api_key == "another My API Key"
         assert async_client.api_key == "My API Key"
 
-        copied = async_client.copy(bearer_token="another My Bearer Token")
-        assert copied.bearer_token == "another My Bearer Token"
-        assert async_client.bearer_token == "My Bearer Token"
-
     def test_copy_default_options(self, async_client: AsyncFastvm) -> None:
         # options that have a default are overridden correctly
         copied = async_client.copy(max_retries=7)
@@ -1164,11 +1069,7 @@ class TestAsyncFastvm:
 
     async def test_copy_default_headers(self) -> None:
         client = AsyncFastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_headers={"X-Foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_headers={"X-Foo": "bar"}
         )
         assert client.default_headers["X-Foo"] == "bar"
 
@@ -1203,11 +1104,7 @@ class TestAsyncFastvm:
 
     async def test_copy_default_query(self) -> None:
         client = AsyncFastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_query={"foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_query={"foo": "bar"}
         )
         assert _get_params(client)["foo"] == "bar"
 
@@ -1335,11 +1232,7 @@ class TestAsyncFastvm:
 
     async def test_client_timeout_option(self) -> None:
         client = AsyncFastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            timeout=httpx.Timeout(0),
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, timeout=httpx.Timeout(0)
         )
 
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -1352,11 +1245,7 @@ class TestAsyncFastvm:
         # custom timeout given to the httpx client should be used
         async with httpx.AsyncClient(timeout=None) as http_client:
             client = AsyncFastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -1368,11 +1257,7 @@ class TestAsyncFastvm:
         # no timeout given to the httpx client should not use the httpx default
         async with httpx.AsyncClient() as http_client:
             client = AsyncFastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -1384,11 +1269,7 @@ class TestAsyncFastvm:
         # explicitly passing the default timeout currently results in it being ignored
         async with httpx.AsyncClient(timeout=HTTPX_DEFAULT_TIMEOUT) as http_client:
             client = AsyncFastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                http_client=http_client,
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, http_client=http_client
             )
 
             request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
@@ -1403,18 +1284,13 @@ class TestAsyncFastvm:
                 AsyncFastvm(
                     base_url=base_url,
                     api_key=api_key,
-                    bearer_token=bearer_token,
                     _strict_response_validation=True,
                     http_client=cast(Any, http_client),
                 )
 
     async def test_default_headers_option(self) -> None:
         test_client = AsyncFastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_headers={"X-Foo": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_headers={"X-Foo": "bar"}
         )
         request = test_client._build_request(FinalRequestOptions(method="get", url="/foo"))
         assert request.headers.get("x-foo") == "bar"
@@ -1423,7 +1299,6 @@ class TestAsyncFastvm:
         test_client2 = AsyncFastvm(
             base_url=base_url,
             api_key=api_key,
-            bearer_token=bearer_token,
             _strict_response_validation=True,
             default_headers={
                 "X-Foo": "stainless",
@@ -1438,36 +1313,18 @@ class TestAsyncFastvm:
         await test_client2.close()
 
     def test_validate_headers(self) -> None:
-        client = AsyncFastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        client = AsyncFastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
         assert request.headers.get("X-API-Key") == api_key
 
-        with update_env(
-            **{
-                "FASTVM_API_KEY": Omit(),
-                "FASTVM_BEARER_TOKEN": Omit(),
-            }
-        ):
-            client2 = AsyncFastvm(base_url=base_url, api_key=None, bearer_token=None, _strict_response_validation=True)
-
-        with pytest.raises(
-            TypeError,
-            match="Could not resolve authentication method. Expected either api_key or bearer_token to be set. Or for one of the `X-API-Key` or `Authorization` headers to be explicitly omitted",
-        ):
-            client2._build_request(FinalRequestOptions(method="get", url="/foo"))
-
-        request2 = client2._build_request(FinalRequestOptions(method="get", url="/foo", headers={"X-API-Key": Omit()}))
-        assert request2.headers.get("X-API-Key") is None
+        with pytest.raises(FastvmError):
+            with update_env(**{"FASTVM_API_KEY": Omit()}):
+                client2 = AsyncFastvm(base_url=base_url, api_key=None, _strict_response_validation=True)
+            _ = client2
 
     async def test_default_query_option(self) -> None:
         client = AsyncFastvm(
-            base_url=base_url,
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
-            default_query={"query_param": "bar"},
+            base_url=base_url, api_key=api_key, _strict_response_validation=True, default_query={"query_param": "bar"}
         )
         request = client._build_request(FinalRequestOptions(method="get", url="/foo"))
         url = httpx.URL(request.url)
@@ -1664,7 +1521,6 @@ class TestAsyncFastvm:
         async with AsyncFastvm(
             base_url=base_url,
             api_key=api_key,
-            bearer_token=bearer_token,
             _strict_response_validation=True,
             http_client=httpx.AsyncClient(transport=MockTransport(handler=mock_handler)),
         ) as client:
@@ -1763,10 +1619,7 @@ class TestAsyncFastvm:
 
     async def test_base_url_setter(self) -> None:
         client = AsyncFastvm(
-            base_url="https://example.com/from_init",
-            api_key=api_key,
-            bearer_token=bearer_token,
-            _strict_response_validation=True,
+            base_url="https://example.com/from_init", api_key=api_key, _strict_response_validation=True
         )
         assert client.base_url == "https://example.com/from_init/"
 
@@ -1778,22 +1631,18 @@ class TestAsyncFastvm:
 
     async def test_base_url_env(self) -> None:
         with update_env(FASTVM_BASE_URL="http://localhost:5000/from/env"):
-            client = AsyncFastvm(api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True)
+            client = AsyncFastvm(api_key=api_key, _strict_response_validation=True)
             assert client.base_url == "http://localhost:5000/from/env/"
 
     @pytest.mark.parametrize(
         "client",
         [
             AsyncFastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
+                base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True
             ),
             AsyncFastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.AsyncClient(),
             ),
@@ -1815,15 +1664,11 @@ class TestAsyncFastvm:
         "client",
         [
             AsyncFastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
+                base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True
             ),
             AsyncFastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.AsyncClient(),
             ),
@@ -1845,15 +1690,11 @@ class TestAsyncFastvm:
         "client",
         [
             AsyncFastvm(
-                base_url="http://localhost:5000/custom/path/",
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
+                base_url="http://localhost:5000/custom/path/", api_key=api_key, _strict_response_validation=True
             ),
             AsyncFastvm(
                 base_url="http://localhost:5000/custom/path/",
                 api_key=api_key,
-                bearer_token=bearer_token,
                 _strict_response_validation=True,
                 http_client=httpx.AsyncClient(),
             ),
@@ -1872,9 +1713,7 @@ class TestAsyncFastvm:
         await client.close()
 
     async def test_copied_client_does_not_close_http(self) -> None:
-        test_client = AsyncFastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        test_client = AsyncFastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         assert not test_client.is_closed()
 
         copied = test_client.copy()
@@ -1886,9 +1725,7 @@ class TestAsyncFastvm:
         assert not test_client.is_closed()
 
     async def test_client_context_manager(self) -> None:
-        test_client = AsyncFastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        test_client = AsyncFastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
         async with test_client as c2:
             assert c2 is test_client
             assert not c2.is_closed()
@@ -1910,11 +1747,7 @@ class TestAsyncFastvm:
     async def test_client_max_retries_validation(self) -> None:
         with pytest.raises(TypeError, match=r"max_retries cannot be None"):
             AsyncFastvm(
-                base_url=base_url,
-                api_key=api_key,
-                bearer_token=bearer_token,
-                _strict_response_validation=True,
-                max_retries=cast(Any, None),
+                base_url=base_url, api_key=api_key, _strict_response_validation=True, max_retries=cast(Any, None)
             )
 
     @pytest.mark.respx(base_url=base_url)
@@ -1924,16 +1757,12 @@ class TestAsyncFastvm:
 
         respx_mock.get("/foo").mock(return_value=httpx.Response(200, text="my-custom-format"))
 
-        strict_client = AsyncFastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=True
-        )
+        strict_client = AsyncFastvm(base_url=base_url, api_key=api_key, _strict_response_validation=True)
 
         with pytest.raises(APIResponseValidationError):
             await strict_client.get("/foo", cast_to=Model)
 
-        non_strict_client = AsyncFastvm(
-            base_url=base_url, api_key=api_key, bearer_token=bearer_token, _strict_response_validation=False
-        )
+        non_strict_client = AsyncFastvm(base_url=base_url, api_key=api_key, _strict_response_validation=False)
 
         response = await non_strict_client.get("/foo", cast_to=Model)
         assert isinstance(response, str)  # type: ignore[unreachable]
@@ -1974,20 +1803,20 @@ class TestAsyncFastvm:
     @mock.patch("fastvm._base_client.BaseClient._calculate_retry_timeout", _low_retry_timeout)
     @pytest.mark.respx(base_url=base_url)
     async def test_retrying_timeout_errors_doesnt_leak(self, respx_mock: MockRouter, async_client: AsyncFastvm) -> None:
-        respx_mock.get("/healthz").mock(side_effect=httpx.TimeoutException("Test timeout error"))
+        respx_mock.post("/v1/vms").mock(side_effect=httpx.TimeoutException("Test timeout error"))
 
         with pytest.raises(APITimeoutError):
-            await async_client.healthz.with_streaming_response.check().__aenter__()
+            await async_client.vms.with_streaming_response.launch().__aenter__()
 
         assert _get_open_connections(async_client) == 0
 
     @mock.patch("fastvm._base_client.BaseClient._calculate_retry_timeout", _low_retry_timeout)
     @pytest.mark.respx(base_url=base_url)
     async def test_retrying_status_errors_doesnt_leak(self, respx_mock: MockRouter, async_client: AsyncFastvm) -> None:
-        respx_mock.get("/healthz").mock(return_value=httpx.Response(500))
+        respx_mock.post("/v1/vms").mock(return_value=httpx.Response(500))
 
         with pytest.raises(APIStatusError):
-            await async_client.healthz.with_streaming_response.check().__aenter__()
+            await async_client.vms.with_streaming_response.launch().__aenter__()
         assert _get_open_connections(async_client) == 0
 
     @pytest.mark.parametrize("failures_before_success", [0, 2, 4])
@@ -2014,9 +1843,9 @@ class TestAsyncFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = await client.healthz.with_raw_response.check()
+        response = await client.vms.with_raw_response.launch()
 
         assert response.retries_taken == failures_before_success
         assert int(response.http_request.headers.get("x-stainless-retry-count")) == failures_before_success
@@ -2038,9 +1867,9 @@ class TestAsyncFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = await client.healthz.with_raw_response.check(extra_headers={"x-stainless-retry-count": Omit()})
+        response = await client.vms.with_raw_response.launch(extra_headers={"x-stainless-retry-count": Omit()})
 
         assert len(response.http_request.headers.get_list("x-stainless-retry-count")) == 0
 
@@ -2061,9 +1890,9 @@ class TestAsyncFastvm:
                 return httpx.Response(500)
             return httpx.Response(200)
 
-        respx_mock.get("/healthz").mock(side_effect=retry_handler)
+        respx_mock.post("/v1/vms").mock(side_effect=retry_handler)
 
-        response = await client.healthz.with_raw_response.check(extra_headers={"x-stainless-retry-count": "42"})
+        response = await client.vms.with_raw_response.launch(extra_headers={"x-stainless-retry-count": "42"})
 
         assert response.http_request.headers.get("x-stainless-retry-count") == "42"
 

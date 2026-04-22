@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from .._types import Body, Query, Headers, NoneType, NotGiven, not_given
+from .._types import Body, Query, Headers, NotGiven, not_given
 from .._compat import cached_property
 from .._resource import SyncAPIResource, AsyncAPIResource
 from .._response import (
@@ -14,31 +14,34 @@ from .._response import (
     async_to_streamed_response_wrapper,
 )
 from .._base_client import make_request_options
+from ..types.org_quota_usage import OrgQuotaUsage
 
-__all__ = ["LivezResource", "AsyncLivezResource"]
+__all__ = ["QuotasResource", "AsyncQuotasResource"]
 
 
-class LivezResource(SyncAPIResource):
+class QuotasResource(SyncAPIResource):
+    """Org quotas and usage"""
+
     @cached_property
-    def with_raw_response(self) -> LivezResourceWithRawResponse:
+    def with_raw_response(self) -> QuotasResourceWithRawResponse:
         """
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
         For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
-        return LivezResourceWithRawResponse(self)
+        return QuotasResourceWithRawResponse(self)
 
     @cached_property
-    def with_streaming_response(self) -> LivezResourceWithStreamingResponse:
+    def with_streaming_response(self) -> QuotasResourceWithStreamingResponse:
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
         For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
-        return LivezResourceWithStreamingResponse(self)
+        return QuotasResourceWithStreamingResponse(self)
 
-    def check(
+    def retrieve(
         self,
         *,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
@@ -47,43 +50,40 @@ class LivezResource(SyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> None:
-        """Liveness check"""
-        extra_headers = {"Accept": "*/*", **(extra_headers or {})}
+    ) -> OrgQuotaUsage:
+        """Get org quotas and usage"""
         return self._get(
-            "/livez",
+            "/v1/org/quotas",
             options=make_request_options(
-                extra_headers=extra_headers,
-                extra_query=extra_query,
-                extra_body=extra_body,
-                timeout=timeout,
-                security={},
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=NoneType,
+            cast_to=OrgQuotaUsage,
         )
 
 
-class AsyncLivezResource(AsyncAPIResource):
+class AsyncQuotasResource(AsyncAPIResource):
+    """Org quotas and usage"""
+
     @cached_property
-    def with_raw_response(self) -> AsyncLivezResourceWithRawResponse:
+    def with_raw_response(self) -> AsyncQuotasResourceWithRawResponse:
         """
         This property can be used as a prefix for any HTTP method call to return
         the raw response object instead of the parsed content.
 
         For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#accessing-raw-response-data-eg-headers
         """
-        return AsyncLivezResourceWithRawResponse(self)
+        return AsyncQuotasResourceWithRawResponse(self)
 
     @cached_property
-    def with_streaming_response(self) -> AsyncLivezResourceWithStreamingResponse:
+    def with_streaming_response(self) -> AsyncQuotasResourceWithStreamingResponse:
         """
         An alternative to `.with_raw_response` that doesn't eagerly read the response body.
 
         For more information, see https://www.github.com/fastvm-org/fastvm-sdk-python#with_streaming_response
         """
-        return AsyncLivezResourceWithStreamingResponse(self)
+        return AsyncQuotasResourceWithStreamingResponse(self)
 
-    async def check(
+    async def retrieve(
         self,
         *,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
@@ -92,53 +92,48 @@ class AsyncLivezResource(AsyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> None:
-        """Liveness check"""
-        extra_headers = {"Accept": "*/*", **(extra_headers or {})}
+    ) -> OrgQuotaUsage:
+        """Get org quotas and usage"""
         return await self._get(
-            "/livez",
+            "/v1/org/quotas",
             options=make_request_options(
-                extra_headers=extra_headers,
-                extra_query=extra_query,
-                extra_body=extra_body,
-                timeout=timeout,
-                security={},
+                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=NoneType,
+            cast_to=OrgQuotaUsage,
         )
 
 
-class LivezResourceWithRawResponse:
-    def __init__(self, livez: LivezResource) -> None:
-        self._livez = livez
+class QuotasResourceWithRawResponse:
+    def __init__(self, quotas: QuotasResource) -> None:
+        self._quotas = quotas
 
-        self.check = to_raw_response_wrapper(
-            livez.check,
+        self.retrieve = to_raw_response_wrapper(
+            quotas.retrieve,
         )
 
 
-class AsyncLivezResourceWithRawResponse:
-    def __init__(self, livez: AsyncLivezResource) -> None:
-        self._livez = livez
+class AsyncQuotasResourceWithRawResponse:
+    def __init__(self, quotas: AsyncQuotasResource) -> None:
+        self._quotas = quotas
 
-        self.check = async_to_raw_response_wrapper(
-            livez.check,
+        self.retrieve = async_to_raw_response_wrapper(
+            quotas.retrieve,
         )
 
 
-class LivezResourceWithStreamingResponse:
-    def __init__(self, livez: LivezResource) -> None:
-        self._livez = livez
+class QuotasResourceWithStreamingResponse:
+    def __init__(self, quotas: QuotasResource) -> None:
+        self._quotas = quotas
 
-        self.check = to_streamed_response_wrapper(
-            livez.check,
+        self.retrieve = to_streamed_response_wrapper(
+            quotas.retrieve,
         )
 
 
-class AsyncLivezResourceWithStreamingResponse:
-    def __init__(self, livez: AsyncLivezResource) -> None:
-        self._livez = livez
+class AsyncQuotasResourceWithStreamingResponse:
+    def __init__(self, quotas: AsyncQuotasResource) -> None:
+        self._quotas = quotas
 
-        self.check = async_to_streamed_response_wrapper(
-            livez.check,
+        self.retrieve = async_to_streamed_response_wrapper(
+            quotas.retrieve,
         )

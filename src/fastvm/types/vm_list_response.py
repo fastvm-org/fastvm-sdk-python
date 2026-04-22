@@ -3,8 +3,8 @@
 from typing import List
 from typing_extensions import TypeAlias
 
-from .vm_instance import VmInstance
+from .vm import Vm
 
 __all__ = ["VmListResponse"]
 
-VmListResponse: TypeAlias = List[VmInstance]
+VmListResponse: TypeAlias = List[Vm]
