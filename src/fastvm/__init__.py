@@ -3,6 +3,13 @@
 import typing as _t
 
 from . import types
+from .lib import (
+    FastvmClient,
+    VMLaunchError,
+    VMNotReadyError,
+    AsyncFastvmClient,
+    FileTransferError,
+)
 from ._types import NOT_GIVEN, Omit, NoneType, NotGiven, Transport, ProxiesTypes, omit, not_given
 from ._utils import file_from_path
 from ._client import Client, Fastvm, Stream, Timeout, Transport, AsyncClient, AsyncFastvm, AsyncStream, RequestOptions
@@ -71,6 +78,11 @@ __all__ = [
     "DefaultHttpxClient",
     "DefaultAsyncHttpxClient",
     "DefaultAioHttpClient",
+    "FastvmClient",
+    "AsyncFastvmClient",
+    "VMLaunchError",
+    "VMNotReadyError",
+    "FileTransferError",
 ]
 
 if not _t.TYPE_CHECKING:

@@ -14,6 +14,9 @@ on:
       - 'stl-preview-head/**'
       - 'stl-preview-base/**'
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     timeout-minutes: 10
@@ -93,3 +96,24 @@ jobs:
 
       - name: Run tests
         run: ./scripts/test
+
+  test_lib_offline:
+    # Isolated signal on our custom code (src/fastvm/lib/**) — no mock server,
+    # no Stainless-generated test matrix. Live tests auto-skip without FASTVM_API_KEY.
+    timeout-minutes: 10
+    name: test_lib_offline
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.10.2'
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run offline lib tests
+        run: uv run pytest tests/lib/offline -v
