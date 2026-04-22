@@ -37,7 +37,10 @@ def _name() -> str:
 
 
 def _base_url() -> str:
-    return os.environ.get("FASTVM_BASE_URL", "https://api.fastvm.org")
+    # `.get(..., default)` returns the empty string when the env var is set
+    # but empty (e.g. GitHub Actions injects empty `${{ inputs.* }}` on
+    # non-workflow_dispatch events). Use `or` to fall through to the default.
+    return os.environ.get("FASTVM_BASE_URL") or "https://api.fastvm.org"
 
 
 def _require_key() -> str:

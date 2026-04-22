@@ -1,13 +1,22 @@
 name: Live tests
 
-# Hits the real FastVM API. Runs alongside the offline CI on every PR and
-# push to main, plus on-demand and nightly. Requires the ``FASTVM_API_KEY``
-# repo secret; tests auto-skip when it's missing (fork PRs, etc.).
+# Hits the real FastVM API. Trigger matrix matches the offline CI so every
+# push + PR + merge runs the live suite. Requires the ``FASTVM_API_KEY`` repo
+# secret; tests auto-skip when it's missing (fork PRs get the skip path).
 on:
   push:
     branches:
-      - main
+      - '**'
+      - '!integrated/**'
+      - '!stl-preview-head/**'
+      - '!stl-preview-base/**'
+      - '!generated'
+      - '!codegen/**'
+      - 'codegen/stl/**'
   pull_request:
+    branches-ignore:
+      - 'stl-preview-head/**'
+      - 'stl-preview-base/**'
   workflow_dispatch:
     inputs:
       base_url:
@@ -20,18 +29,19 @@ on:
 permissions:
   contents: read
 
-# Per-ref serialization: a second push to a PR branch cancels the in-flight
-# run so we only burn VM quota on the latest commit. Main/scheduled/manual
-# runs don't cancel — each deserves to complete.
+# Serialize per-ref; new pushes to a PR branch cancel in-flight runs.
 concurrency:
   group: fastvm-live-tests-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 
 jobs:
   live:
     name: live
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    # Skip the phantom pull_request job on non-fork PRs — push already covers
+    # the same commit. Same anti-double-run pattern as ci.yml.
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.fork) && (github.event_name != 'push' || github.event.head_commit.message != 'codegen metadata')
     steps:
       - uses: actions/checkout@v6
 
@@ -46,5 +56,6 @@ jobs:
       - name: Run live tests
         env:
           FASTVM_API_KEY: ${{ secrets.FASTVM_API_KEY }}
-          FASTVM_BASE_URL: ${{ github.event.inputs.base_url }}
+          # Fall back to the production API when no dispatch override is given.
+          FASTVM_BASE_URL: ${{ github.event.inputs.base_url || 'https://api.fastvm.org' }}
         run: uv run pytest tests/lib/live -v
