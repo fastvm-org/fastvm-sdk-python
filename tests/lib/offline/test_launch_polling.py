@@ -1,4 +1,4 @@
-"""``launch()`` polling terminates on success, terminal statuses, and timeout."""
+"""launch() polling: success, terminal failure, timeout, wait=False."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from fastvm.types.vm import Vm
 
 
 def _vm(status: str) -> Vm:
-    # Pydantic wants every required field; we only really care about ``status``.
     return Vm.model_validate(
         {
             "id": "vm_test",
@@ -35,43 +34,52 @@ def client() -> Iterator[FastvmClient]:
     c.close()
 
 
-def test_running_launch_skips_polling(client: FastvmClient) -> None:
-    with patch.object(client.vms, "launch", return_value=_vm("running")):
-        vm = client.launch(machine_type="c1m2")
-    assert vm.status == "running"
+def _mock_launch(client: FastvmClient, *, initial: str, transitions: List[str] | None = None):
+    """Returns a context manager that mocks vms.launch + vms.retrieve + time.sleep.
+
+    `initial` is the status returned by POST; `transitions` is the sequence of
+    statuses returned by each subsequent GET poll.
+    """
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    stack.enter_context(patch.object(client.vms, "launch", return_value=_vm(initial)))
+    if transitions is not None:
+        queue = list(transitions)
+        last = transitions[-1]
+
+        def _next(_id: str) -> Vm:
+            return _vm(queue.pop(0) if queue else last)
+
+        stack.enter_context(patch.object(client.vms, "retrieve", side_effect=_next))
+    stack.enter_context(patch("time.sleep"))
+    return stack
 
 
-def test_provisioning_polls_then_runs(client: FastvmClient) -> None:
-    statuses: List[str] = ["provisioning", "provisioning", "running"]
+def test_running_skips_polling(client: FastvmClient) -> None:
+    with _mock_launch(client, initial="running"):
+        assert client.launch(machine_type="c1m2").status == "running"
 
-    def _next(_id: str) -> Vm:
-        return _vm(statuses.pop(0))
 
-    with patch.object(client.vms, "launch", return_value=_vm("provisioning")), patch.object(
-        client.vms, "retrieve", side_effect=_next
-    ), patch("time.sleep"):
+def test_polls_until_running(client: FastvmClient) -> None:
+    with _mock_launch(client, initial="provisioning", transitions=["provisioning", "provisioning", "running"]):
         vm = client.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
     assert vm.status == "running"
 
 
-def test_terminal_failure_raises(client: FastvmClient) -> None:
-    with patch.object(client.vms, "launch", return_value=_vm("provisioning")), patch.object(
-        client.vms, "retrieve", return_value=_vm("error")
-    ), patch("time.sleep"):
-        with pytest.raises(VMLaunchError) as exc_info:
+def test_terminal_status_raises(client: FastvmClient) -> None:
+    with _mock_launch(client, initial="provisioning", transitions=["error"]):
+        with pytest.raises(VMLaunchError) as exc:
             client.launch(machine_type="c1m2", poll_interval=0.01, timeout=5)
-    assert exc_info.value.status == "error"
+    assert exc.value.status == "error"
 
 
 def test_timeout_raises(client: FastvmClient) -> None:
-    with patch.object(client.vms, "launch", return_value=_vm("provisioning")), patch.object(
-        client.vms, "retrieve", return_value=_vm("provisioning")
-    ), patch("time.sleep"):
+    with _mock_launch(client, initial="provisioning", transitions=["provisioning"]):
         with pytest.raises(VMNotReadyError):
             client.launch(machine_type="c1m2", poll_interval=0.01, timeout=0.0)
 
 
 def test_wait_false_returns_initial(client: FastvmClient) -> None:
-    with patch.object(client.vms, "launch", return_value=_vm("provisioning")):
-        vm = client.launch(machine_type="c1m2", wait=False)
-    assert vm.status == "provisioning"
+    with _mock_launch(client, initial="provisioning"):
+        assert client.launch(machine_type="c1m2", wait=False).status == "provisioning"
