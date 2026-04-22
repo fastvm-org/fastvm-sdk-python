@@ -9,11 +9,15 @@ from unittest.mock import patch
 import pytest
 
 from fastvm import FastvmClient, VMLaunchError, VMNotReadyError
+from fastvm._compat import parse_obj
 from fastvm.types.vm import Vm
 
 
 def _vm(status: str) -> Vm:
-    return Vm.model_validate(
+    # Use fastvm._compat.parse_obj — it dispatches to model_validate (pydantic v2)
+    # or parse_obj (pydantic v1). Stainless runs the suite under both.
+    return parse_obj(
+        Vm,
         {
             "id": "vm_test",
             "cpu": 1,
@@ -23,7 +27,7 @@ def _vm(status: str) -> Vm:
             "name": "t",
             "orgId": "org_test",
             "status": status,
-        }
+        },
     )
 
 
