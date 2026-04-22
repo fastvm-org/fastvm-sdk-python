@@ -97,7 +97,7 @@ async def async_client() -> AsyncIterator[AsyncFastvmClient]:
 @pytest.fixture(scope="session")
 def vm(client: FastvmClient) -> Iterator[Vm]:
     """One VM per pytest-xdist worker, reused across tests."""
-    v = client.launch(machine_type="c1m2", name=_name())
+    v = client.vms.launch(machine_type="c1m2", name=_name())
     try:
         yield v
     finally:
@@ -109,7 +109,7 @@ def vm(client: FastvmClient) -> Iterator[Vm]:
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def async_vm(async_client: AsyncFastvmClient) -> AsyncIterator[Vm]:
-    v = await async_client.launch(machine_type="c1m2", name=_name())
+    v = await async_client.vms.launch(machine_type="c1m2", name=_name())
     try:
         yield v
     finally:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Union, cast
 
 import httpx
+import pytest
 
 from fastvm import FastvmClient, AsyncFastvmClient
 from fastvm.lib._client import _VmsResourceExt, _AsyncVmsResourceExt
@@ -41,3 +42,30 @@ def test_user_http_client_wins():
     client = FastvmClient(api_key="k", base_url="http://example.invalid", http_client=custom)
     assert client._client is custom
     client.close()
+
+
+def test_empty_base_url_env_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``FASTVM_BASE_URL=""`` must not produce an empty base URL.
+
+    Upstream Stainless template bug — see openai-python#2927. Our
+    ``_normalize_base_url`` shim pre-resolves the env var so the generated
+    fallback chain hits the hardcoded production URL.
+    """
+    monkeypatch.setenv("FASTVM_BASE_URL", "")
+    client = FastvmClient(api_key="k")
+    try:
+        assert str(client.base_url).rstrip("/") == "https://api.fastvm.org"
+    finally:
+        client.close()
+
+
+def test_empty_explicit_base_url_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing ``base_url=""`` explicitly is also treated as unset."""
+    monkeypatch.delenv("FASTVM_BASE_URL", raising=False)
+    client = FastvmClient(api_key="k", base_url="")
+    try:
+        assert str(client.base_url).rstrip("/") == "https://api.fastvm.org"
+    finally:
+        client.close()

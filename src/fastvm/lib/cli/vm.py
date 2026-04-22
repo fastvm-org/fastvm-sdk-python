@@ -76,7 +76,7 @@ def _do_launch(
                 kwargs["name"] = name
             if disk_gi_b is not None:
                 kwargs["disk_gi_b"] = disk_gi_b
-            new_vm = await client.launch(**kwargs)
+            new_vm = await client.vms.launch(**kwargs)
             if output_json:
                 print_json(new_vm)
             else:
