@@ -4,7 +4,6 @@ import typing as _t
 
 from . import types
 from .lib import (
-    VMExecError,
     FastvmClient,
     VMLaunchError,
     VMNotReadyError,
@@ -83,7 +82,6 @@ __all__ = [
     "AsyncFastvmClient",
     "VMLaunchError",
     "VMNotReadyError",
-    "VMExecError",
     "FileTransferError",
 ]
 

@@ -41,7 +41,7 @@ from typing import (
 
 import httpx
 
-from ._errors import VMExecError, VMLaunchError, VMNotReadyError, FileTransferError
+from ._errors import VMLaunchError, VMNotReadyError, FileTransferError
 from .._client import Fastvm, AsyncFastvm
 from .._compat import cached_property
 from ._tarutil import pack_directory_to_stream, unpack_stream_to_directory
@@ -488,7 +488,12 @@ def _stage_tar_path(tag: str) -> str:
 
 def _require_exec_ok(preview: str, result: ExecResult) -> ExecResult:
     if result.timed_out or result.exit_code != 0:
-        raise VMExecError(preview, result)
+        reason = "timed out" if result.timed_out else f"exit_code={result.exit_code}"
+        stderr = (result.stderr or "")[:2000]
+        raise FileTransferError(
+            f"VM command failed ({reason}): {preview}\nstderr: {stderr}",
+            exec_result=result,
+        )
     return result
 
 

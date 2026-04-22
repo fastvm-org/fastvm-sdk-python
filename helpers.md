@@ -7,11 +7,11 @@ the generated client:
 
 - The `fastvm` command-line tool
 - A handful of Python ergonomic helpers (`launch()`, `upload()`, `download()`,
-  shell-string auto-wrap on `vms.run`)
+shell-string auto-wrap on `vms.run`)
 
-All of this lives in [`src/fastvm/lib/`](src/fastvm/lib/) and is re-exported
+All of this lives in `[src/fastvm/lib/](src/fastvm/lib/)` and is re-exported
 from the top-level `fastvm` package. See
-[`fastvm-mono/CUSTOM_CODE.md`](https://github.com/fastvm-org/fastvm-mono/blob/main/CUSTOM_CODE.md)
+`[fastvm-mono/CUSTOM_CODE.md](https://github.com/fastvm-org/fastvm-mono/blob/main/CUSTOM_CODE.md)`
 for the rationale and full inventory.
 
 ---
@@ -97,12 +97,36 @@ unchanged.
 `FastvmClient` / `AsyncFastvmClient` configure `httpx.Client(http2=True)` by
 default. Override with `http2=False` or pass your own `http_client=`.
 
-### Custom error types
+### Error types
+
+Every SDK error — generated HTTP errors *and* the three helper errors below —
+subclasses the same `fastvm.FastvmError` root, so one `except` catches
+everything from the client:
 
 ```python
-from fastvm import VMLaunchError, VMNotReadyError, VMExecError, FileTransferError
+from fastvm import FastvmError  # catches everything
 ```
 
-These are only raised by the helpers above; every HTTP error from the
-generated client still surfaces as `APIStatusError` (or a subclass like
-`NotFoundError`, `RateLimitError`, `AuthenticationError`) untouched.
+The three helper-only errors cover failure modes the generated
+`APIStatusError` hierarchy can't model (success HTTP response with a
+failure payload, client-side polling deadlines, out-of-band GCS /
+local-tar failures):
+
+```python
+from fastvm import VMLaunchError, VMNotReadyError, FileTransferError
+```
+
+- `VMLaunchError` — VM reached a terminal failure status (`error` /
+`stopped` / `deleting`) during `launch()` polling. Not an HTTP error;
+`GET /v1/vms/{id}` returned 200 OK with a bad status in the body.
+- `VMNotReadyError` — `launch()` polling deadline exceeded. Also subclasses
+stdlib `TimeoutError`, so `except TimeoutError` works too.
+- `FileTransferError` — any failure during `upload()` / `download()` that
+isn't a Fastvm HTTP error: GCS PUT/GET failures, local `tarfile`
+errors, size-limit violations, or VM-side `tar`/`curl` exits. When
+caused by a VM-side command, the original `ExecResult` is available on
+`err.exec_result` for stderr / exit code inspection.
+
+Regular HTTP 4xx/5xx from any method (helpers or generated) still
+surfaces as `APIStatusError` (or `NotFoundError`, `RateLimitError`,
+`AuthenticationError`, etc.) untouched.

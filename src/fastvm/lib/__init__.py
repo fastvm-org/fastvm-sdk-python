@@ -22,13 +22,12 @@ available as an escape hatch.
 """
 
 from ._client import FastvmClient, AsyncFastvmClient
-from ._errors import VMExecError, VMLaunchError, VMNotReadyError, FileTransferError
+from ._errors import VMLaunchError, VMNotReadyError, FileTransferError
 
 __all__ = [
     "FastvmClient",
     "AsyncFastvmClient",
     "VMLaunchError",
     "VMNotReadyError",
-    "VMExecError",
     "FileTransferError",
 ]
