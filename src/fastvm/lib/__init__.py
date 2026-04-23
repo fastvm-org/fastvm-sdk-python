@@ -11,7 +11,8 @@ re-exports these symbols):
 ``AsyncFastvm`` and add:
 
   * HTTP/2 ``httpx`` client by default (multiplexing + header compression)
-  * ``launch(...)`` — ``POST /v1/vms`` + poll until ``status == running``
+  * ``client.vms.launch(...)`` — ``POST /v1/vms`` + poll until ``status == running``
+    (pass ``wait=False`` for the raw 201/202 behaviour)
   * ``upload(vm_id, local, remote)`` / ``download(vm_id, remote, local)``
     — unified file/dir transfers via presigned storage URLs
   * ``client.vms.run(id, command="ls -la")`` — auto-wraps shell strings

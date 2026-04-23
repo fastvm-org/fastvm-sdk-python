@@ -54,20 +54,27 @@ Two convenience clients ship alongside the generated `Fastvm` / `AsyncFastvm`:
 from fastvm import FastvmClient, AsyncFastvmClient
 ```
 
-### `client.launch(...)` — create a VM and wait for `status=running`
+### `client.vms.launch(...)` — create a VM and wait for `status=running`
 
-`POST /v1/vms` returns `201 running` for immediate boots or `202` for queued
-VMs. `launch()` wraps `vms.launch(...)` and polls `vms.retrieve()` until the
-VM is ready.
+Our `FastvmClient` overrides the generated `vms.launch` so the common
+"launch and wait" flow is the default. `POST /v1/vms` returns `201 running`
+for immediate boots or `202` for queued VMs; the override polls
+`GET /v1/vms/{id}` until the VM is ready.
 
 ```python
-vm = client.launch(machine_type="c1m2", poll_interval=2.0, timeout=300)
+vm = client.vms.launch(machine_type="c1m2", poll_interval=2.0, wait_timeout=300)
 # raises VMLaunchError on terminal status (error, stopped, deleting)
-# raises VMNotReadyError on timeout
+# raises VMNotReadyError on wait_timeout exceeded
 # pass wait=False to return the initial (possibly-queued) VM immediately
+# `timeout=N` still works — it's the raw HTTP request timeout and is
+# forwarded to the generated `VmsResource.launch` verbatim.
 ```
 
-Restore from snapshot: `client.launch(snapshot_id="snp_…")`.
+Restore from snapshot: `client.vms.launch(snapshot_id="snp_…")`.
+
+Need the raw, non-polling behaviour of the generated method? Pass
+`wait=False`, or call `client.wait_for_vm_ready(vm_id)` separately when
+you already have a VM id from `list()` or another source.
 
 ### `client.upload(vm_id, local, remote)` / `client.download(vm_id, remote, local)`
 

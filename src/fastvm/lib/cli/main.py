@@ -180,7 +180,7 @@ def run_shortcut(
         if name:
             launch_kwargs["name"] = name
         async with client:
-            vm = await client.launch(**launch_kwargs)
+            vm = await client.vms.launch(**launch_kwargs)
             launched_vm_id = vm.id
             try:
                 run_kwargs: dict[str, Any] = {}
