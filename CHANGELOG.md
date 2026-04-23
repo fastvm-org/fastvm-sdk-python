@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 (2026-04-23)
+
+Full Changelog: [v0.2.1...v0.2.2](https://github.com/fastvm-org/fastvm-sdk-python/compare/v0.2.1...v0.2.2)
+
+### Chores
+
+* update SDK settings ([f66c8f9](https://github.com/fastvm-org/fastvm-sdk-python/commit/f66c8f917a83dffc63df380d9c88f2b86f233209))
+* update SDK settings ([8e42716](https://github.com/fastvm-org/fastvm-sdk-python/commit/8e42716b614e53a190071fbe6de31c4904c08c2d))
+
 ## 0.2.1 (2026-04-23)
 
 Full Changelog: [v0.2.0...v0.2.1](https://github.com/fastvm-org/fastvm-sdk-python/compare/v0.2.0...v0.2.1)
