@@ -7,7 +7,5 @@
 
 For the `fastvm` CLI and the small set of hand-written ergonomic helpers
 (`launch`, `upload`, `download`, shell-string auto-wrap on `vms.run`), see
-`[helpers.md](helpers.md)`. The generated method reference is in
-`[api.md](api.md)`.
-
-Docs: [https://fastvm.org/docs](https://fastvm.org/docs).
+the [full SDK reference at fastvm.org/docs](https://fastvm.org/docs). The
+generated method reference is also mirrored in `[api.md](api.md)`.
