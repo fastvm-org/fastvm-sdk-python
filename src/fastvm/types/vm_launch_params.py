@@ -34,7 +34,7 @@ class VmLaunchParams(TypedDict, total=False):
     name: str
     """
     User-facing name (trimmed + whitespace-collapsed, max 64 runes after
-    normalization — longer values are truncated server-side). Auto-generated as
+    normalization; longer values are truncated server-side). Auto-generated as
     `vm-<8-char-id-prefix>` if empty.
     """
 

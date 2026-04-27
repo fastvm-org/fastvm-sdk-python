@@ -64,7 +64,7 @@ class FilesResource(SyncAPIResource):
         must be a presigned storage URL previously minted by
         `POST /v1/vms/{id}/files/presign` (URLs from other sources are rejected).
 
-        Response mirrors `/v1/vms/{id}/exec` — the worker runs the fetch via the guest
+        Response mirrors `/v1/vms/{id}/exec`: the worker runs the fetch via the guest
         agent and reports stdout/stderr/exit code of the underlying download+unpack
         operation.
 
@@ -189,7 +189,7 @@ class AsyncFilesResource(AsyncAPIResource):
         must be a presigned storage URL previously minted by
         `POST /v1/vms/{id}/files/presign` (URLs from other sources are rejected).
 
-        Response mirrors `/v1/vms/{id}/exec` — the worker runs the fetch via the guest
+        Response mirrors `/v1/vms/{id}/exec`: the worker runs the fetch via the guest
         agent and reports stdout/stderr/exit code of the underlying download+unpack
         operation.
 

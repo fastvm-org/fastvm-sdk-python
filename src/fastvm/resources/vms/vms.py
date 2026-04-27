@@ -222,9 +222,9 @@ class VmsResource(SyncAPIResource):
         Open a WebSocket to
         `wss://<host><websocketPath>?session=<token>` to attach to the VM's serial
         console. The WebSocket endpoint itself is intentionally not modeled in this spec
-        — it uses a capability-URL flow (no API key on upgrade) and a custom binary/text
-        protocol. See `src/fastvm/lib/console.py` in the Python SDK for a reference
-        client.
+        because it uses a capability-URL flow (no API key on upgrade) and a custom
+        binary/text protocol. See `src/fastvm/lib/console.py` in the Python SDK for a
+        reference client.
 
         Args:
           extra_headers: Send extra headers
@@ -283,7 +283,7 @@ class VmsResource(SyncAPIResource):
               1–256 bytes, value length ≤4096 bytes, total JSON encoding ≤65536 bytes.
 
           name: User-facing name (trimmed + whitespace-collapsed, max 64 runes after
-              normalization — longer values are truncated server-side). Auto-generated as
+              normalization; longer values are truncated server-side). Auto-generated as
               `vm-<8-char-id-prefix>` if empty.
 
           snapshot_id: Snapshot ID to restore from.
@@ -368,6 +368,7 @@ class VmsResource(SyncAPIResource):
         id: str,
         *,
         command: SequenceNotStr[str],
+        stdin: str | Omit = omit,
         timeout_sec: int | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
         # The extra values given here take precedence over values defined on the client or passed to this method.
@@ -376,20 +377,39 @@ class VmsResource(SyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> ExecResult:
-        """
-        Runs a command via the VM's guest agent and returns stdout, stderr, exit code,
-        and timing. `timeoutSec` bounds server-side execution; clients should set their
-        own HTTP timeout in addition.
+        """Runs `command` via the VM's guest agent.
+
+        Response shape is determined by the
+        client's `Accept` header:
+
+        - **`Accept: application/json`** (default, omitted, or `*/*`): buffered
+          `ExecVMResponse` — scheduler collects all output server-side and returns a
+          single JSON object once the command exits. Per-stream output is capped at 4
+          MiB; overflow bytes are dropped and signalled via `stdoutTruncated` /
+          `stderrTruncated`.
+        - **`Accept: application/x-ndjson`**: newline-delimited stream of `ExecEvent`s —
+          zero or more `stdout`/`stderr` chunks followed by exactly one terminal `exit`
+          event. Use this for incremental output (long builds, test runners, live logs).
+          No server-side cap.
+
+        Both modes share the same request body and are powered by the same guest-side
+        streaming protocol; the buffered mode is purely a server-side collector.
+        `timeoutSec` bounds server-side execution; clients should set their own HTTP
+        timeout in addition.
 
         502 responses are transient (worker unreachable, worker-side timeout, or worker
-        5xx — all collapsed into 502 at the scheduler). The SDK's `run()` helper does
-        NOT auto-retry these by default: exec is **not idempotent** — if a 502 hides a
-        successful exec, a retry may run the command twice. Callers opt in with
+        5xx, all collapsed into 502 at the scheduler). The SDK's `run()` helper does NOT
+        auto-retry these by default: exec is **not idempotent**, so if a 502 hides a
+        successful exec a retry may run the command twice. Callers opt in with
         `max_retries=N` per call.
 
         Args:
           command: Argv-style command. First element must be non-empty. For shell strings, wrap as
               `["sh", "-c", "<string>"]`.
+
+          stdin: Optional base64-encoded stdin blob, written to the child's stdin before the
+              process starts reading much and then closed. Streaming stdin is not supported —
+              pipe from a file inside the guest if you need that shape.
 
           timeout_sec: Server-side execution timeout in seconds. Must be positive when provided; omit
               to use the server default.
@@ -409,6 +429,7 @@ class VmsResource(SyncAPIResource):
             body=maybe_transform(
                 {
                     "command": command,
+                    "stdin": stdin,
                     "timeout_sec": timeout_sec,
                 },
                 vm_run_params.VmRunParams,
@@ -646,9 +667,9 @@ class AsyncVmsResource(AsyncAPIResource):
         Open a WebSocket to
         `wss://<host><websocketPath>?session=<token>` to attach to the VM's serial
         console. The WebSocket endpoint itself is intentionally not modeled in this spec
-        — it uses a capability-URL flow (no API key on upgrade) and a custom binary/text
-        protocol. See `src/fastvm/lib/console.py` in the Python SDK for a reference
-        client.
+        because it uses a capability-URL flow (no API key on upgrade) and a custom
+        binary/text protocol. See `src/fastvm/lib/console.py` in the Python SDK for a
+        reference client.
 
         Args:
           extra_headers: Send extra headers
@@ -707,7 +728,7 @@ class AsyncVmsResource(AsyncAPIResource):
               1–256 bytes, value length ≤4096 bytes, total JSON encoding ≤65536 bytes.
 
           name: User-facing name (trimmed + whitespace-collapsed, max 64 runes after
-              normalization — longer values are truncated server-side). Auto-generated as
+              normalization; longer values are truncated server-side). Auto-generated as
               `vm-<8-char-id-prefix>` if empty.
 
           snapshot_id: Snapshot ID to restore from.
@@ -792,6 +813,7 @@ class AsyncVmsResource(AsyncAPIResource):
         id: str,
         *,
         command: SequenceNotStr[str],
+        stdin: str | Omit = omit,
         timeout_sec: int | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
         # The extra values given here take precedence over values defined on the client or passed to this method.
@@ -800,20 +822,39 @@ class AsyncVmsResource(AsyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> ExecResult:
-        """
-        Runs a command via the VM's guest agent and returns stdout, stderr, exit code,
-        and timing. `timeoutSec` bounds server-side execution; clients should set their
-        own HTTP timeout in addition.
+        """Runs `command` via the VM's guest agent.
+
+        Response shape is determined by the
+        client's `Accept` header:
+
+        - **`Accept: application/json`** (default, omitted, or `*/*`): buffered
+          `ExecVMResponse` — scheduler collects all output server-side and returns a
+          single JSON object once the command exits. Per-stream output is capped at 4
+          MiB; overflow bytes are dropped and signalled via `stdoutTruncated` /
+          `stderrTruncated`.
+        - **`Accept: application/x-ndjson`**: newline-delimited stream of `ExecEvent`s —
+          zero or more `stdout`/`stderr` chunks followed by exactly one terminal `exit`
+          event. Use this for incremental output (long builds, test runners, live logs).
+          No server-side cap.
+
+        Both modes share the same request body and are powered by the same guest-side
+        streaming protocol; the buffered mode is purely a server-side collector.
+        `timeoutSec` bounds server-side execution; clients should set their own HTTP
+        timeout in addition.
 
         502 responses are transient (worker unreachable, worker-side timeout, or worker
-        5xx — all collapsed into 502 at the scheduler). The SDK's `run()` helper does
-        NOT auto-retry these by default: exec is **not idempotent** — if a 502 hides a
-        successful exec, a retry may run the command twice. Callers opt in with
+        5xx, all collapsed into 502 at the scheduler). The SDK's `run()` helper does NOT
+        auto-retry these by default: exec is **not idempotent**, so if a 502 hides a
+        successful exec a retry may run the command twice. Callers opt in with
         `max_retries=N` per call.
 
         Args:
           command: Argv-style command. First element must be non-empty. For shell strings, wrap as
               `["sh", "-c", "<string>"]`.
+
+          stdin: Optional base64-encoded stdin blob, written to the child's stdin before the
+              process starts reading much and then closed. Streaming stdin is not supported —
+              pipe from a file inside the guest if you need that shape.
 
           timeout_sec: Server-side execution timeout in seconds. Must be positive when provided; omit
               to use the server default.
@@ -833,6 +874,7 @@ class AsyncVmsResource(AsyncAPIResource):
             body=await async_maybe_transform(
                 {
                     "command": command,
+                    "stdin": stdin,
                     "timeout_sec": timeout_sec,
                 },
                 vm_run_params.VmRunParams,
