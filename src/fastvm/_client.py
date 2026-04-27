@@ -214,10 +214,10 @@ class Fastvm(SyncAPIClient):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> HealthResponse:
-        """Returns 200 when the scheduler is reachable.
+        """Returns 200 when the API is reachable.
 
-        SDK clients call this on startup to
-        warm HTTP/2 connections before the first real request.
+        SDK clients call this on startup to warm
+        HTTP/2 connections before the first real request.
         """
         return self.get(
             "/healthz",
@@ -425,10 +425,10 @@ class AsyncFastvm(AsyncAPIClient):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> HealthResponse:
-        """Returns 200 when the scheduler is reachable.
+        """Returns 200 when the API is reachable.
 
-        SDK clients call this on startup to
-        warm HTTP/2 connections before the first real request.
+        SDK clients call this on startup to warm
+        HTTP/2 connections before the first real request.
         """
         return await self.get(
             "/healthz",
