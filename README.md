@@ -1,9 +1,9 @@
-# Fastvm Python API library
+# FastVM Python SDK & CLI API library
 
 <!-- prettier-ignore -->
 [![PyPI version](https://img.shields.io/pypi/v/fastvm.svg?label=pypi%20(stable))](https://pypi.org/project/fastvm/)
 
-The Fastvm Python library provides convenient access to the Fastvm REST API from any Python 3.9+
+The FastVM Python SDK & CLI library provides convenient access to the Fastvm REST API from any Python 3.9+
 application. The library includes type definitions for all request params and response fields,
 and offers both synchronous and asynchronous clients powered by [httpx](https://github.com/encode/httpx).
 
@@ -11,14 +11,17 @@ It is generated with [Stainless](https://www.stainless.com/).
 
 ## Documentation
 
-The full API of this library can be found in [api.md](api.md).
+The REST API documentation can be found on [fastvm.org](https://fastvm.org/docs). The full API of this library can be found in [api.md](api.md).
 
 ## Installation
 
 ```sh
-# install from PyPI
-pip install fastvm
+# install from the production repo
+pip install git+ssh://git@github.com/fastvm-org/fastvm-sdk-python.git
 ```
+
+> [!NOTE]
+> Once this package is [published to PyPI](https://www.stainless.com/docs/guides/publish), this will become: `pip install fastvm`
 
 ## Usage
 
@@ -32,7 +35,10 @@ client = Fastvm(
     api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
 )
 
-vm = client.vms.launch()
+vm = client.vms.launch(
+    machine_type="c1m2",
+    name="my-vm",
+)
 print(vm.id)
 ```
 
@@ -56,7 +62,10 @@ client = AsyncFastvm(
 
 
 async def main() -> None:
-    vm = await client.vms.launch()
+    vm = await client.vms.launch(
+        machine_type="c1m2",
+        name="my-vm",
+    )
     print(vm.id)
 
 
@@ -72,8 +81,8 @@ By default, the async client uses `httpx` for HTTP requests. However, for improv
 You can enable this by installing `aiohttp`:
 
 ```sh
-# install from PyPI
-pip install fastvm[aiohttp]
+# install from the production repo
+pip install 'fastvm[aiohttp] @ git+ssh://git@github.com/fastvm-org/fastvm-sdk-python.git'
 ```
 
 Then you can enable it by instantiating the client with `http_client=DefaultAioHttpClient()`:
@@ -90,7 +99,10 @@ async def main() -> None:
         api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
         http_client=DefaultAioHttpClient(),
     ) as client:
-        vm = await client.vms.launch()
+        vm = await client.vms.launch(
+            machine_type="c1m2",
+            name="my-vm",
+        )
         print(vm.id)
 
 
@@ -137,7 +149,10 @@ from fastvm import Fastvm
 client = Fastvm()
 
 try:
-    client.vms.launch()
+    client.vms.launch(
+        machine_type="c1m2",
+        name="my-vm",
+    )
 except fastvm.APIConnectionError as e:
     print("The server could not be reached")
     print(e.__cause__)  # an underlying Exception, likely raised within httpx.
@@ -180,7 +195,10 @@ client = Fastvm(
 )
 
 # Or, configure per-request:
-client.with_options(max_retries=5).vms.launch()
+client.with_options(max_retries=5).vms.launch(
+    machine_type="c1m2",
+    name="my-vm",
+)
 ```
 
 ### Timeouts
@@ -203,7 +221,10 @@ client = Fastvm(
 )
 
 # Override per-request:
-client.with_options(timeout=5.0).vms.launch()
+client.with_options(timeout=5.0).vms.launch(
+    machine_type="c1m2",
+    name="my-vm",
+)
 ```
 
 On timeout, an `APITimeoutError` is thrown.
@@ -244,7 +265,10 @@ The "raw" Response object can be accessed by prefixing `.with_raw_response.` to 
 from fastvm import Fastvm
 
 client = Fastvm()
-response = client.vms.with_raw_response.launch()
+response = client.vms.with_raw_response.launch(
+    machine_type="c1m2",
+    name="my-vm",
+)
 print(response.headers.get('X-My-Header'))
 
 vm = response.parse()  # get the object that `vms.launch()` would have returned
@@ -262,7 +286,10 @@ The above interface eagerly reads the full response body when you make the reque
 To stream the response body, use `.with_streaming_response` instead, which requires a context manager and only reads the response body once you call `.read()`, `.text()`, `.json()`, `.iter_bytes()`, `.iter_text()`, `.iter_lines()` or `.parse()`. In the async client, these are async methods.
 
 ```python
-with client.vms.with_streaming_response.launch() as response:
+with client.vms.with_streaming_response.launch(
+    machine_type="c1m2",
+    name="my-vm",
+) as response:
     print(response.headers.get("X-My-Header"))
 
     for line in response.iter_lines():
