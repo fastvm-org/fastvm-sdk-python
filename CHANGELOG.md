@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 (2026-04-29)
+
+Full Changelog: [v0.3.0...v0.4.0](https://github.com/fastvm-org/fastvm-sdk-python/compare/v0.3.0...v0.4.0)
+
+### Features
+
+* **sdk:** move launch polling into client.vms.launch ([#5](https://github.com/fastvm-org/fastvm-sdk-python/issues/5)) ([0beca48](https://github.com/fastvm-org/fastvm-sdk-python/commit/0beca48b8fe59226959f8aa5bfa7dfeae063f62f))
+
+
+### Chores
+
+* **deps:** bump vulnerable transitives in uv.lock ([25446f8](https://github.com/fastvm-org/fastvm-sdk-python/commit/25446f8238346bba4c8642aeb010d9139c95f9ba))
+
+
+### Documentation
+
+* centralize helper documentation ([#6](https://github.com/fastvm-org/fastvm-sdk-python/issues/6)) ([d43cca3](https://github.com/fastvm-org/fastvm-sdk-python/commit/d43cca3606245b75a2cb7a9602f364ee10de6cb4))
+* restore full Stainless-generated README ([2e67a42](https://github.com/fastvm-org/fastvm-sdk-python/commit/2e67a42cc9d934e28407f41c076b6ffbefc623ce))
+
 ## 0.3.0 (2026-04-29)
 
 Full Changelog: [v0.2.2...v0.3.0](https://github.com/fastvm-org/fastvm-sdk-python/compare/v0.2.2...v0.3.0)
