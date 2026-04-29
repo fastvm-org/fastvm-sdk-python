@@ -325,6 +325,7 @@ class TestVms:
         vm = client.vms.run(
             id="id",
             command=["string"],
+            stdin="stdin",
             timeout_sec=1,
         )
         assert_matches_type(ExecResult, vm, path=["response"])
@@ -730,6 +731,7 @@ class TestAsyncVms:
         vm = await async_client.vms.run(
             id="id",
             command=["string"],
+            stdin="stdin",
             timeout_sec=1,
         )
         assert_matches_type(ExecResult, vm, path=["response"])

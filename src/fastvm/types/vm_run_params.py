@@ -18,6 +18,13 @@ class VmRunParams(TypedDict, total=False):
     `["sh", "-c", "<string>"]`.
     """
 
+    stdin: str
+    """
+    Optional base64-encoded stdin blob, written to the child's stdin before the
+    process starts reading much and then closed. Streaming stdin is not supported —
+    pipe from a file inside the guest if you need that shape.
+    """
+
     timeout_sec: Annotated[int, PropertyInfo(alias="timeoutSec")]
     """Server-side execution timeout in seconds.
 

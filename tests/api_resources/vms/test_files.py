@@ -10,7 +10,7 @@ import pytest
 from fastvm import Fastvm, AsyncFastvm
 from tests.utils import assert_matches_type
 from fastvm.types import ExecResult
-from fastvm.types.vms import PresignResponse
+from fastvm.types.shared import FilePresignResponse
 
 base_url = os.environ.get("TEST_API_BASE_URL", "http://127.0.0.1:4010")
 
@@ -80,7 +80,7 @@ class TestFiles:
             id="id",
             path="path",
         )
-        assert_matches_type(PresignResponse, file, path=["response"])
+        assert_matches_type(FilePresignResponse, file, path=["response"])
 
     @parametrize
     def test_raw_response_presign(self, client: Fastvm) -> None:
@@ -92,7 +92,7 @@ class TestFiles:
         assert response.is_closed is True
         assert response.http_request.headers.get("X-Stainless-Lang") == "python"
         file = response.parse()
-        assert_matches_type(PresignResponse, file, path=["response"])
+        assert_matches_type(FilePresignResponse, file, path=["response"])
 
     @parametrize
     def test_streaming_response_presign(self, client: Fastvm) -> None:
@@ -104,7 +104,7 @@ class TestFiles:
             assert response.http_request.headers.get("X-Stainless-Lang") == "python"
 
             file = response.parse()
-            assert_matches_type(PresignResponse, file, path=["response"])
+            assert_matches_type(FilePresignResponse, file, path=["response"])
 
         assert cast(Any, response.is_closed) is True
 
@@ -184,7 +184,7 @@ class TestAsyncFiles:
             id="id",
             path="path",
         )
-        assert_matches_type(PresignResponse, file, path=["response"])
+        assert_matches_type(FilePresignResponse, file, path=["response"])
 
     @parametrize
     async def test_raw_response_presign(self, async_client: AsyncFastvm) -> None:
@@ -196,7 +196,7 @@ class TestAsyncFiles:
         assert response.is_closed is True
         assert response.http_request.headers.get("X-Stainless-Lang") == "python"
         file = await response.parse()
-        assert_matches_type(PresignResponse, file, path=["response"])
+        assert_matches_type(FilePresignResponse, file, path=["response"])
 
     @parametrize
     async def test_streaming_response_presign(self, async_client: AsyncFastvm) -> None:
@@ -208,7 +208,7 @@ class TestAsyncFiles:
             assert response.http_request.headers.get("X-Stainless-Lang") == "python"
 
             file = await response.parse()
-            assert_matches_type(PresignResponse, file, path=["response"])
+            assert_matches_type(FilePresignResponse, file, path=["response"])
 
         assert cast(Any, response.is_closed) is True
 

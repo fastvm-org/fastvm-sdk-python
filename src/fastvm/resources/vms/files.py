@@ -17,7 +17,7 @@ from ..._response import (
 from ...types.vms import file_fetch_params, file_presign_params
 from ..._base_client import make_request_options
 from ...types.exec_result import ExecResult
-from ...types.vms.presign_response import PresignResponse
+from ...types.shared.file_presign_response import FilePresignResponse
 
 __all__ = ["FilesResource", "AsyncFilesResource"]
 
@@ -58,15 +58,14 @@ class FilesResource(SyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> ExecResult:
-        """Scheduler asks the VM worker to download `url` into the guest at `path`.
+        """Pulls `url` into the guest at `path`.
 
-        `url`
-        must be a presigned storage URL previously minted by
-        `POST /v1/vms/{id}/files/presign` (URLs from other sources are rejected).
+        `url` must be a presigned storage URL
+        previously minted by `POST /v1/vms/{id}/files/presign` (URLs from other sources
+        are rejected).
 
-        Response mirrors `/v1/vms/{id}/exec` — the worker runs the fetch via the guest
-        agent and reports stdout/stderr/exit code of the underlying download+unpack
-        operation.
+        Response mirrors `/v1/vms/{id}/exec`: reports stdout/stderr/exit code of the
+        underlying download+unpack operation.
 
         Not idempotent; not retried by default.
 
@@ -115,11 +114,11 @@ class FilesResource(SyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> PresignResponse:
+    ) -> FilePresignResponse:
         """
         Returns a pair of short-lived signed URLs targeting a per-VM staging location.
         Upload to `uploadUrl` with PUT (`Content-Type: application/octet-stream`), then
-        pass `downloadUrl` to `POST /v1/vms/{id}/files/fetch` to have the worker pull it
+        pass `downloadUrl` to `POST /v1/vms/{id}/files/fetch` to have the server pull it
         into the guest filesystem.
 
         Args:
@@ -143,7 +142,7 @@ class FilesResource(SyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=PresignResponse,
+            cast_to=FilePresignResponse,
         )
 
 
@@ -183,15 +182,14 @@ class AsyncFilesResource(AsyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> ExecResult:
-        """Scheduler asks the VM worker to download `url` into the guest at `path`.
+        """Pulls `url` into the guest at `path`.
 
-        `url`
-        must be a presigned storage URL previously minted by
-        `POST /v1/vms/{id}/files/presign` (URLs from other sources are rejected).
+        `url` must be a presigned storage URL
+        previously minted by `POST /v1/vms/{id}/files/presign` (URLs from other sources
+        are rejected).
 
-        Response mirrors `/v1/vms/{id}/exec` — the worker runs the fetch via the guest
-        agent and reports stdout/stderr/exit code of the underlying download+unpack
-        operation.
+        Response mirrors `/v1/vms/{id}/exec`: reports stdout/stderr/exit code of the
+        underlying download+unpack operation.
 
         Not idempotent; not retried by default.
 
@@ -240,11 +238,11 @@ class AsyncFilesResource(AsyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> PresignResponse:
+    ) -> FilePresignResponse:
         """
         Returns a pair of short-lived signed URLs targeting a per-VM staging location.
         Upload to `uploadUrl` with PUT (`Content-Type: application/octet-stream`), then
-        pass `downloadUrl` to `POST /v1/vms/{id}/files/fetch` to have the worker pull it
+        pass `downloadUrl` to `POST /v1/vms/{id}/files/fetch` to have the server pull it
         into the guest filesystem.
 
         Args:
@@ -268,7 +266,7 @@ class AsyncFilesResource(AsyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=PresignResponse,
+            cast_to=FilePresignResponse,
         )
 
 
