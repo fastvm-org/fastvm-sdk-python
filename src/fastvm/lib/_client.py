@@ -51,7 +51,7 @@ from ..resources.vms.vms import VmsResource, AsyncVmsResource
 from ..types.exec_result import ExecResult
 
 if TYPE_CHECKING:
-    from ..types.vms.presign_response import PresignResponse
+    from ..types.shared.file_presign_response import FilePresignResponse
 
 __all__ = ["FastvmClient", "AsyncFastvmClient"]
 
@@ -563,7 +563,7 @@ def _stat_size(path: str) -> int:
         raise FileTransferError(f"cannot stat {path!r}: {e}", cause=e) from e
 
 
-def _assert_under_limit(size: int, presigned: "PresignResponse") -> None:
+def _assert_under_limit(size: int, presigned: "FilePresignResponse") -> None:
     if size > presigned.max_upload_bytes:
         raise FileTransferError(f"upload size {size} exceeds VM limit {presigned.max_upload_bytes}")
 
