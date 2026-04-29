@@ -46,10 +46,12 @@ from ._base_client import (
 from .types.health_response import HealthResponse
 
 if TYPE_CHECKING:
-    from .resources import vms, quotas, snapshots
+    from .resources import vms, builds, quotas, snapshots, build_contexts
+    from .resources.builds import BuildsResource, AsyncBuildsResource
     from .resources.quotas import QuotasResource, AsyncQuotasResource
     from .resources.vms.vms import VmsResource, AsyncVmsResource
     from .resources.snapshots import SnapshotsResource, AsyncSnapshotsResource
+    from .resources.build_contexts import BuildContextsResource, AsyncBuildContextsResource
 
 __all__ = ["Timeout", "Transport", "ProxiesTypes", "RequestOptions", "Fastvm", "AsyncFastvm", "Client", "AsyncClient"]
 
@@ -130,6 +132,20 @@ class Fastvm(SyncAPIClient):
         from .resources.snapshots import SnapshotsResource
 
         return SnapshotsResource(self)
+
+    @cached_property
+    def builds(self) -> BuildsResource:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import BuildsResource
+
+        return BuildsResource(self)
+
+    @cached_property
+    def build_contexts(self) -> BuildContextsResource:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import BuildContextsResource
+
+        return BuildContextsResource(self)
 
     @cached_property
     def quotas(self) -> QuotasResource:
@@ -352,6 +368,20 @@ class AsyncFastvm(AsyncAPIClient):
         return AsyncSnapshotsResource(self)
 
     @cached_property
+    def builds(self) -> AsyncBuildsResource:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import AsyncBuildsResource
+
+        return AsyncBuildsResource(self)
+
+    @cached_property
+    def build_contexts(self) -> AsyncBuildContextsResource:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import AsyncBuildContextsResource
+
+        return AsyncBuildContextsResource(self)
+
+    @cached_property
     def quotas(self) -> AsyncQuotasResource:
         """Org quotas and usage"""
         from .resources.quotas import AsyncQuotasResource
@@ -518,6 +548,20 @@ class FastvmWithRawResponse:
         return SnapshotsResourceWithRawResponse(self._client.snapshots)
 
     @cached_property
+    def builds(self) -> builds.BuildsResourceWithRawResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import BuildsResourceWithRawResponse
+
+        return BuildsResourceWithRawResponse(self._client.builds)
+
+    @cached_property
+    def build_contexts(self) -> build_contexts.BuildContextsResourceWithRawResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import BuildContextsResourceWithRawResponse
+
+        return BuildContextsResourceWithRawResponse(self._client.build_contexts)
+
+    @cached_property
     def quotas(self) -> quotas.QuotasResourceWithRawResponse:
         """Org quotas and usage"""
         from .resources.quotas import QuotasResourceWithRawResponse
@@ -547,6 +591,20 @@ class AsyncFastvmWithRawResponse:
         from .resources.snapshots import AsyncSnapshotsResourceWithRawResponse
 
         return AsyncSnapshotsResourceWithRawResponse(self._client.snapshots)
+
+    @cached_property
+    def builds(self) -> builds.AsyncBuildsResourceWithRawResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import AsyncBuildsResourceWithRawResponse
+
+        return AsyncBuildsResourceWithRawResponse(self._client.builds)
+
+    @cached_property
+    def build_contexts(self) -> build_contexts.AsyncBuildContextsResourceWithRawResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import AsyncBuildContextsResourceWithRawResponse
+
+        return AsyncBuildContextsResourceWithRawResponse(self._client.build_contexts)
 
     @cached_property
     def quotas(self) -> quotas.AsyncQuotasResourceWithRawResponse:
@@ -580,6 +638,20 @@ class FastvmWithStreamedResponse:
         return SnapshotsResourceWithStreamingResponse(self._client.snapshots)
 
     @cached_property
+    def builds(self) -> builds.BuildsResourceWithStreamingResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import BuildsResourceWithStreamingResponse
+
+        return BuildsResourceWithStreamingResponse(self._client.builds)
+
+    @cached_property
+    def build_contexts(self) -> build_contexts.BuildContextsResourceWithStreamingResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import BuildContextsResourceWithStreamingResponse
+
+        return BuildContextsResourceWithStreamingResponse(self._client.build_contexts)
+
+    @cached_property
     def quotas(self) -> quotas.QuotasResourceWithStreamingResponse:
         """Org quotas and usage"""
         from .resources.quotas import QuotasResourceWithStreamingResponse
@@ -609,6 +681,20 @@ class AsyncFastvmWithStreamedResponse:
         from .resources.snapshots import AsyncSnapshotsResourceWithStreamingResponse
 
         return AsyncSnapshotsResourceWithStreamingResponse(self._client.snapshots)
+
+    @cached_property
+    def builds(self) -> builds.AsyncBuildsResourceWithStreamingResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.builds import AsyncBuildsResourceWithStreamingResponse
+
+        return AsyncBuildsResourceWithStreamingResponse(self._client.builds)
+
+    @cached_property
+    def build_contexts(self) -> build_contexts.AsyncBuildContextsResourceWithStreamingResponse:
+        """Build snapshots from a Docker image ref or Dockerfile"""
+        from .resources.build_contexts import AsyncBuildContextsResourceWithStreamingResponse
+
+        return AsyncBuildContextsResourceWithStreamingResponse(self._client.build_contexts)
 
     @cached_property
     def quotas(self) -> quotas.AsyncQuotasResourceWithStreamingResponse:

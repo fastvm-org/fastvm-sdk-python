@@ -8,6 +8,14 @@ from .vms import (
     VmsResourceWithStreamingResponse,
     AsyncVmsResourceWithStreamingResponse,
 )
+from .builds import (
+    BuildsResource,
+    AsyncBuildsResource,
+    BuildsResourceWithRawResponse,
+    AsyncBuildsResourceWithRawResponse,
+    BuildsResourceWithStreamingResponse,
+    AsyncBuildsResourceWithStreamingResponse,
+)
 from .quotas import (
     QuotasResource,
     AsyncQuotasResource,
@@ -24,6 +32,14 @@ from .snapshots import (
     SnapshotsResourceWithStreamingResponse,
     AsyncSnapshotsResourceWithStreamingResponse,
 )
+from .build_contexts import (
+    BuildContextsResource,
+    AsyncBuildContextsResource,
+    BuildContextsResourceWithRawResponse,
+    AsyncBuildContextsResourceWithRawResponse,
+    BuildContextsResourceWithStreamingResponse,
+    AsyncBuildContextsResourceWithStreamingResponse,
+)
 
 __all__ = [
     "VmsResource",
@@ -38,6 +54,18 @@ __all__ = [
     "AsyncSnapshotsResourceWithRawResponse",
     "SnapshotsResourceWithStreamingResponse",
     "AsyncSnapshotsResourceWithStreamingResponse",
+    "BuildsResource",
+    "AsyncBuildsResource",
+    "BuildsResourceWithRawResponse",
+    "AsyncBuildsResourceWithRawResponse",
+    "BuildsResourceWithStreamingResponse",
+    "AsyncBuildsResourceWithStreamingResponse",
+    "BuildContextsResource",
+    "AsyncBuildContextsResource",
+    "BuildContextsResourceWithRawResponse",
+    "AsyncBuildContextsResourceWithRawResponse",
+    "BuildContextsResourceWithStreamingResponse",
+    "AsyncBuildContextsResourceWithStreamingResponse",
     "QuotasResource",
     "AsyncQuotasResource",
     "QuotasResourceWithRawResponse",
