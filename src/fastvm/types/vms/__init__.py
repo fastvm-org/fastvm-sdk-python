@@ -2,6 +2,5 @@
 
 from __future__ import annotations
 
-from .presign_response import PresignResponse as PresignResponse
 from .file_fetch_params import FileFetchParams as FileFetchParams
 from .file_presign_params import FilePresignParams as FilePresignParams

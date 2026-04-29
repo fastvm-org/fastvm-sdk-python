@@ -1,7 +1,7 @@
 # Shared Types
 
 ```python
-from fastvm.types import FirewallPolicy, FirewallRule
+from fastvm.types import FilePresignResponse, FirewallPolicy, FirewallRule
 ```
 
 # Fastvm
@@ -38,12 +38,6 @@ Methods:
 
 ## Files
 
-Types:
-
-```python
-from fastvm.types.vms import PresignResponse
-```
-
 Methods:
 
 - `client.vms.files.fetch(id, \*\*params) -> ExecResult`
@@ -60,9 +54,29 @@ from fastvm.types import Snapshot, SnapshotListResponse, SnapshotDeleteResponse
 Methods:
 
 - `client.snapshots.create(\*\*params) -> Snapshot`
+- <code title="get /v1/snapshots/{id}">client.snapshots.<a href="./src/fastvm/resources/snapshots.py">retrieve</a>(id) -> <a href="./src/fastvm/types/snapshot.py">Snapshot</a></code>
 - `client.snapshots.update(id, \*\*params) -> Snapshot`
 - `client.snapshots.list() -> SnapshotListResponse`
 - `client.snapshots.delete(id) -> SnapshotDeleteResponse`
+
+# Builds
+
+Types:
+
+```python
+from fastvm.types import BuildResponse
+```
+
+Methods:
+
+- <code title="post /v1/builds">client.builds.<a href="./src/fastvm/resources/builds.py">create</a>(\*\*<a href="src/fastvm/types/build_create_params.py">params</a>) -> <a href="./src/fastvm/types/build_response.py">BuildResponse</a></code>
+- <code title="get /v1/builds/{id}">client.builds.<a href="./src/fastvm/resources/builds.py">retrieve</a>(id) -> <a href="./src/fastvm/types/build_response.py">BuildResponse</a></code>
+
+# BuildContexts
+
+Methods:
+
+- <code title="post /v1/build-contexts/presign">client.build_contexts.<a href="./src/fastvm/resources/build_contexts.py">presign</a>() -> <a href="./src/fastvm/types/shared/file_presign_response.py">FilePresignResponse</a></code>
 
 # Quotas
 

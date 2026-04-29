@@ -4,10 +4,10 @@ from pydantic import Field as FieldInfo
 
 from ..._models import BaseModel
 
-__all__ = ["PresignResponse"]
+__all__ = ["FilePresignResponse"]
 
 
-class PresignResponse(BaseModel):
+class FilePresignResponse(BaseModel):
     """
     Pair of signed URLs scoped to the same per-VM staging object.
     Usable in either direction: either side (client or VM) PUTs bytes
