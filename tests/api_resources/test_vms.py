@@ -15,6 +15,7 @@ from fastvm.types import (
     ConsoleToken,
     VmListResponse,
     VmDeleteResponse,
+    VmLaunchResponse,
 )
 
 base_url = os.environ.get("TEST_API_BASE_URL", "http://127.0.0.1:4010")
@@ -212,7 +213,7 @@ class TestVms:
     @parametrize
     def test_method_launch(self, client: Fastvm) -> None:
         vm = client.vms.launch()
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     def test_method_launch_with_all_params(self, client: Fastvm) -> None:
@@ -235,7 +236,7 @@ class TestVms:
             name="name",
             snapshot_id="snapshotId",
         )
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     def test_raw_response_launch(self, client: Fastvm) -> None:
@@ -244,7 +245,7 @@ class TestVms:
         assert response.is_closed is True
         assert response.http_request.headers.get("X-Stainless-Lang") == "python"
         vm = response.parse()
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     def test_streaming_response_launch(self, client: Fastvm) -> None:
@@ -253,7 +254,7 @@ class TestVms:
             assert response.http_request.headers.get("X-Stainless-Lang") == "python"
 
             vm = response.parse()
-            assert_matches_type(Vm, vm, path=["response"])
+            assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
         assert cast(Any, response.is_closed) is True
 
@@ -618,7 +619,7 @@ class TestAsyncVms:
     @parametrize
     async def test_method_launch(self, async_client: AsyncFastvm) -> None:
         vm = await async_client.vms.launch()
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     async def test_method_launch_with_all_params(self, async_client: AsyncFastvm) -> None:
@@ -641,7 +642,7 @@ class TestAsyncVms:
             name="name",
             snapshot_id="snapshotId",
         )
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     async def test_raw_response_launch(self, async_client: AsyncFastvm) -> None:
@@ -650,7 +651,7 @@ class TestAsyncVms:
         assert response.is_closed is True
         assert response.http_request.headers.get("X-Stainless-Lang") == "python"
         vm = await response.parse()
-        assert_matches_type(Vm, vm, path=["response"])
+        assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
     @parametrize
     async def test_streaming_response_launch(self, async_client: AsyncFastvm) -> None:
@@ -659,7 +660,7 @@ class TestAsyncVms:
             assert response.http_request.headers.get("X-Stainless-Lang") == "python"
 
             vm = await response.parse()
-            assert_matches_type(Vm, vm, path=["response"])
+            assert_matches_type(VmLaunchResponse, vm, path=["response"])
 
         assert cast(Any, response.is_closed) is True
 

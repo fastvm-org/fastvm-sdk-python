@@ -35,11 +35,10 @@ client = Fastvm(
     api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
 )
 
-vm = client.vms.launch(
+response = client.vms.launch(
     machine_type="c1m2",
     name="my-vm",
 )
-print(vm.id)
 ```
 
 While you can provide an `api_key` keyword argument,
@@ -62,11 +61,10 @@ client = AsyncFastvm(
 
 
 async def main() -> None:
-    vm = await client.vms.launch(
+    response = await client.vms.launch(
         machine_type="c1m2",
         name="my-vm",
     )
-    print(vm.id)
 
 
 asyncio.run(main())
@@ -99,11 +97,10 @@ async def main() -> None:
         api_key=os.environ.get("FASTVM_API_KEY"),  # This is the default and can be omitted
         http_client=DefaultAioHttpClient(),
     ) as client:
-        vm = await client.vms.launch(
+        response = await client.vms.launch(
             machine_type="c1m2",
             name="my-vm",
         )
-        print(vm.id)
 
 
 asyncio.run(main())
@@ -127,10 +124,10 @@ from fastvm import Fastvm
 
 client = Fastvm()
 
-vm = client.vms.launch(
+response = client.vms.launch(
     firewall={"mode": "mode"},
 )
-print(vm.firewall)
+print(response.firewall)
 ```
 
 ## Handling errors
@@ -272,7 +269,7 @@ response = client.vms.with_raw_response.launch(
 print(response.headers.get('X-My-Header'))
 
 vm = response.parse()  # get the object that `vms.launch()` would have returned
-print(vm.id)
+print(vm)
 ```
 
 These methods return an [`APIResponse`](https://github.com/fastvm-org/fastvm-sdk-python/tree/main/src/fastvm/_response.py) object.

@@ -37,6 +37,7 @@ from ...types.exec_result import ExecResult
 from ...types.console_token import ConsoleToken
 from ...types.vm_list_response import VmListResponse
 from ...types.vm_delete_response import VmDeleteResponse
+from ...types.vm_launch_response import VmLaunchResponse
 from ...types.shared_params.firewall_rule import FirewallRule
 from ...types.shared_params.firewall_policy import FirewallPolicy
 
@@ -260,7 +261,7 @@ class VmsResource(SyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> Vm:
+    ) -> VmLaunchResponse:
         """
         Creates a new VM, either from a machineType (fresh boot) or a snapshotId
         (restore from snapshot).
@@ -312,7 +313,7 @@ class VmsResource(SyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=Vm,
+            cast_to=VmLaunchResponse,
         )
 
     def patch_firewall(
@@ -701,7 +702,7 @@ class AsyncVmsResource(AsyncAPIResource):
         extra_query: Query | None = None,
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
-    ) -> Vm:
+    ) -> VmLaunchResponse:
         """
         Creates a new VM, either from a machineType (fresh boot) or a snapshotId
         (restore from snapshot).
@@ -753,7 +754,7 @@ class AsyncVmsResource(AsyncAPIResource):
             options=make_request_options(
                 extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
             ),
-            cast_to=Vm,
+            cast_to=VmLaunchResponse,
         )
 
     async def patch_firewall(

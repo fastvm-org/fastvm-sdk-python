@@ -20,6 +20,7 @@ from .vm_launch_params import VmLaunchParams as VmLaunchParams
 from .vm_list_response import VmListResponse as VmListResponse
 from .vm_update_params import VmUpdateParams as VmUpdateParams
 from .vm_delete_response import VmDeleteResponse as VmDeleteResponse
+from .vm_launch_response import VmLaunchResponse as VmLaunchResponse
 from .build_create_params import BuildCreateParams as BuildCreateParams
 from .snapshot_create_params import SnapshotCreateParams as SnapshotCreateParams
 from .snapshot_list_response import SnapshotListResponse as SnapshotListResponse
